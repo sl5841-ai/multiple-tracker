@@ -1,0 +1,17 @@
+{
+  "name": "sp500-multiples",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "yahoo-finance2": "^4.0.2"
+  }
+}

@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>S&amp;P 500 Multiples</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f6f4;
+    --surface: #fcfcfb;
+    --border: #e3e2de;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #8a8984;
+    --accent: #2a78d6;
+    --accent-soft: rgba(42, 120, 214, 0.22);
+    --hover: #f0f0ec;
+    --sel: #e8f0fb;
+    --good-bg: rgba(0, 131, 0, 0.14);
+    --bad-bg: rgba(227, 73, 72, 0.16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111110; --surface: #1a1a19; --border: #2e2e2c; --text: #fff; --text-2: #c3c2b7;
+      --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --border: #2e2e2c; --text: #fff; --text-2: #c3c2b7;
+    --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0; }
+  .sub { color: var(--text-2); font-size: 13px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button, select, input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type="number"] { width: 70px; }
+  input[type="search"] { width: 240px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .progress { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; width: 220px; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--text-2); font-size: 12px; }
+  th:first-child, td:first-child, .l { text-align: left; }
+  thead tr.grp th { text-align: center; color: var(--text); border-bottom: 0; }
+  th.gs, td.gs { border-left: 1px solid var(--border); }
+  td.med { font-weight: 600; }
+  tbody tr:hover { background: var(--hover); }
+  #sectorTable tbody tr { cursor: pointer; }
+  #sectorTable tbody tr.sel { background: var(--sel); }
+  tr.total td { font-weight: 600; border-top: 2px solid var(--border); }
+  th.sort { cursor: pointer; user-select: none; }
+  th.sort:hover { color: var(--text); }
+  .nm { color: var(--muted); }
+  td.above { background: var(--good-bg); }
+  td.below { background: var(--bad-bg); }
+  .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+         padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; white-space: nowrap; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-2); }
+  .legend span::before { content: ""; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .lg-iqr::before { width: 18px; height: 10px; background: var(--accent-soft); border-radius: 2px; }
+  .lg-med::before { width: 3px; height: 14px; background: var(--accent); }
+  .lg-idx::before { width: 0; height: 14px; border-left: 1px dashed var(--text-2); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px 10px 4px; position: relative; }
+  .panel.idx { border-color: var(--accent); }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .panel-head b { font-size: 13px; }
+  .panel-val { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chg { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .panel svg { display: block; width: 100%; overflow: visible; }
+  .asof { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; font-size: 13px; }
+  .banner { background: var(--sel); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+  .pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); }
+  @media (max-width: 640px) { input[type="search"] { width: 100%; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>S&amp;P 500 Trading Multiples</h1>
+      <div class="sub" id="asOf">Loading…</div>
+    </div>
+    <div class="row">
+      <label class="asof">As of <input type="date" id="asOfDate" /></label>
+      <select id="snapSel" title="Saved full snapshots (include NTM)"><option value="">Saved snapshots…</option></select>
+      <button id="latestBtn">Latest</button>
+      <div class="progress" id="progWrap" hidden><div id="prog"></div></div>
+      <span class="sub" id="progText"></span>
+      <button id="refreshBtn">Refresh data</button>
+    </div>
+  </header>
+  <div class="banner" id="asOfBanner" hidden></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Sector benchmarks</h2>
+      <div class="row sub">
+        <label>Exclude P/E above <input type="number" id="capPe" value="100" min="0" />x</label>
+        <label>EV/EBITDA above <input type="number" id="capEv" value="50" min="0" />x</label>
+        <label>EV/Revenue above <input type="number" id="capRev" value="30" min="0" />x</label>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="sectorTable"></table></div>
+    <div class="note">
+      25th = 1st quartile boundary · 75th = start of the 4th (top) quartile · percentiles use linear interpolation (Excel PERCENTILE.INC).
+      Negative / zero earnings or EBITDA are treated as NM and excluded, as are multiples above the caps. Click a sector to filter the company list.
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="chartTitle">Sector ranges</h2>
+      <div class="row">
+        <div class="seg" id="metricSeg"></div>
+        <div class="legend"><span class="lg-iqr">25th–75th</span><span class="lg-med">Median</span><span class="lg-idx">S&amp;P 500 median</span></div>
+      </div>
+    </div>
+    <div class="chart" id="chart"><svg id="chartSvg"></svg><div class="tip" id="tip"></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="histTitle">Sector multiples over time</h2>
+      <div class="row">
+        <div class="seg" id="histMetricSeg"></div>
+        <div class="seg" id="periodSeg"></div>
+      </div>
+    </div>
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <div class="legend"><span class="lg-iqr">25th–75th</span><span class="lg-med">Median</span><span class="lg-idx">S&amp;P 500 median</span></div>
+      <span class="sub" id="histStatus"></span>
+    </div>
+    <div class="grid" id="histGrid"></div>
+    <div class="note">
+      Weekly, LTM basis only: historical NTM consensus estimates aren't available from free sources. Fundamentals are from SEC EDGAR 10-Q/10-K XBRL,
+      applied point-in-time (a quarter counts only once it was filed), with prices from Yahoo Finance; historical EV = price × diluted shares + net debt.
+      Uses today's constituents (survivorship bias). The latest point can differ from the snapshot above where EDGAR lags a recent filing. Same caps/NM rules as above.
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Companies <span class="pill" id="count"></span></h2>
+      <div class="row">
+        <input type="search" id="search" placeholder="Search ticker or company…" />
+        <select id="sectorFilter"><option value="">All sectors</option></select>
+        <button id="csvBtn">Export CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="coTable"></table></div>
+    <div class="note">
+      <span class="key" style="background:var(--good-bg)"></span>Above sector median
+      &nbsp;&nbsp;<span class="key" style="background:var(--bad-bg)"></span>Below sector median
+      &nbsp;·&nbsp; Hover a cell for the sector median and premium/discount. Unshaded = NM or excluded by the caps.
+    </div>
+    <div class="note" id="method">
+      Source: Yahoo Finance (prices, EV, LTM financials, consensus estimates); constituents &amp; GICS sectors from Wikipedia.
+      LTM P/E = price ÷ trailing 12M diluted EPS. NTM P/E = price ÷ time-weighted blend of current and next fiscal-year consensus EPS.
+      LTM EV/EBITDA = enterprise value ÷ trailing 12M EBITDA. NTM EBITDA is estimated as LTM EBITDA margin × NTM consensus revenue
+      (Yahoo does not publish consensus EBITDA). EV/Revenue = EV ÷ LTM revenue or NTM consensus revenue (blended like EPS). EV-based multiples are shown as NM for banks and insurers, where EV isn't meaningful.
+    </div>
+  </section>
+</main>
+
+<script>
+const METRICS = [
+  { key: "peLtm", label: "P/E LTM", cap: "capPe" },
+  { key: "peNtm", label: "P/E NTM", cap: "capPe" },
+  { key: "evEbitdaLtm", label: "EV/EBITDA LTM", cap: "capEv" },
+  { key: "evEbitdaNtm", label: "EV/EBITDA NTM", cap: "capEv" },
+  { key: "evRevLtm", label: "EV/Revenue LTM", cap: "capRev" },
+  { key: "evRevNtm", label: "EV/Revenue NTM", cap: "capRev" },
+];
+const $ = (id) => document.getElementById(id);
+const state = { companies: [], sector: "", search: "", sort: { key: "marketCap", dir: -1 }, chartMetric: "peNtm" };
+
+// ---------- stats ----------
+function pct(sorted, p) {
+  if (!sorted.length) return null;
+  const i = (sorted.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+function clean(c, m) {
+  const v = c[m.key], cap = Number($(m.cap).value);
+  return v == null || !(v > 0) || (cap > 0 && v > cap) ? null : v;
+}
+function stats(list, m) {
+  const vals = list.map((c) => clean(c, m)).filter((v) => v != null).sort((a, b) => a - b);
+  return { n: vals.length, q1: pct(vals, 0.25), med: pct(vals, 0.5), q3: pct(vals, 0.75) };
+}
+const fx = (v) => (v == null ? '<span class="nm">NM</span>' : v.toFixed(1) + "x");
+const fmtBn = (v) => (v == null ? '<span class="nm">–</span>' : "$" + (v / 1e9).toLocaleString(undefined, { maximumFractionDigits: v < 1e10 ? 1 : 0 }) + "B");
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+
+function sectors() {
+  return [...new Set(state.companies.map((c) => c.sector))].sort();
+}
+
+// ---------- sector table ----------
+function renderSectorTable() {
+  const secs = sectors();
+  const rows = secs.map((s) => ({ name: s, list: state.companies.filter((c) => c.sector === s) }));
+  rows.push({ name: "S&P 500", list: state.companies, total: true });
+  let h = '<thead><tr class="grp"><th></th><th></th>' +
+    METRICS.map((m) => `<th colspan="3" class="gs">${m.label}</th>`).join("") + "</tr><tr><th>Sector</th><th>#</th>" +
+    METRICS.map(() => '<th class="gs">25th</th><th>Median</th><th>75th</th>').join("") + "</tr></thead><tbody>";
+  for (const r of rows) {
+    const cls = [r.total ? "total" : "", state.sector === r.name ? "sel" : ""].join(" ");
+    h += `<tr class="${cls}" data-sector="${r.total ? "" : esc(r.name)}"><td>${esc(r.name)}</td><td>${r.list.length}</td>`;
+    for (const m of METRICS) {
+      const s = stats(r.list, m), t = `title="n = ${s.n} with meaningful ${m.label}"`;
+      h += `<td class="gs" ${t}>${fx(s.q1)}</td><td class="med" ${t}>${fx(s.med)}</td><td ${t}>${fx(s.q3)}</td>`;
+    }
+    h += "</tr>";
+  }
+  $("sectorTable").innerHTML = h + "</tbody>";
+  $("sectorTable").querySelectorAll("tbody tr").forEach((tr) =>
+    tr.addEventListener("click", () => {
+      const s = tr.dataset.sector;
+      state.sector = state.sector === s ? "" : s;
+      $("sectorFilter").value = state.sector;
+      renderAll();
+    }));
+}
+
+// ---------- range chart ----------
+function renderChart() {
+  const m = METRICS.find((x) => x.key === state.chartMetric);
+  $("chartTitle").textContent = `Sector ranges — ${m.label}`;
+  const secs = sectors();
+  const data = secs.map((s) => ({ name: s, ...stats(state.companies.filter((c) => c.sector === s), m) }));
+  const idx = stats(state.companies, m);
+  const svg = $("chartSvg");
+  const W = svg.parentElement.clientWidth, rowH = 30, top = 8, bottom = 28;
+  const labelW = Math.min(190, W * 0.38), right = 48;
+  const H = top + bottom + rowH * data.length;
+  const max = Math.max(1, ...data.map((d) => d.q3 ?? 0), idx.med ?? 0) * 1.1;
+  const x = (v) => labelW + (v / max) * (W - labelW - right);
+  const step = [1, 2, 5, 10, 20, 25, 50].find((s) => max / s <= 8) ?? 100;
+  let g = "";
+  for (let t = 0; t <= max; t += step)
+    g += `<line x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - bottom}" stroke="var(--border)"/>` +
+         `<text x="${x(t)}" y="${H - bottom + 16}" text-anchor="middle" font-size="11" fill="var(--muted)">${t}x</text>`;
+  data.forEach((d, i) => {
+    const cy = top + i * rowH + rowH / 2;
+    g += `<text x="${labelW - 10}" y="${cy + 4}" text-anchor="end" font-size="12" fill="var(--text-2)">${esc(d.name)}</text>`;
+    if (d.med != null) {
+      g += `<rect x="${x(d.q1)}" y="${cy - 7}" width="${Math.max(2, x(d.q3) - x(d.q1))}" height="14" rx="3" fill="var(--accent-soft)"/>` +
+           `<rect x="${x(d.med) - 1.5}" y="${cy - 9}" width="3" height="18" rx="1" fill="var(--accent)"/>` +
+           `<text x="${x(d.q3) + 6}" y="${cy + 4}" font-size="11" fill="var(--text-2)">${d.med.toFixed(1)}x</text>`;
+    }
+    g += `<rect class="hit" data-i="${i}" x="0" y="${cy - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
+  });
+  if (idx.med != null)
+    g += `<line x1="${x(idx.med)}" x2="${x(idx.med)}" y1="${top}" y2="${H - bottom}" stroke="var(--text-2)" stroke-dasharray="3 3"/>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  svg.innerHTML = g;
+  const tip = $("tip");
+  svg.querySelectorAll(".hit").forEach((r) => {
+    r.addEventListener("mousemove", (e) => {
+      const d = data[r.dataset.i], box = svg.parentElement.getBoundingClientRect();
+      tip.innerHTML = `<b>${esc(d.name)}</b><br>75th: ${fx(d.q3)}<br>Median: <b>${fx(d.med)}</b><br>25th: ${fx(d.q1)}<br><span class="nm">n = ${d.n} · S&amp;P median ${fx(idx.med)}</span>`;
+      tip.style.display = "block";
+      const tx = Math.min(e.clientX - box.left + 14, box.width - tip.offsetWidth - 4);
+      tip.style.left = tx + "px";
+      tip.style.top = e.clientY - box.top + 12 + "px";
+      r.setAttribute("fill", "var(--hover)"); r.setAttribute("fill-opacity", "0.5");
+    });
+    r.addEventListener("mouseleave", () => { tip.style.display = "none"; r.setAttribute("fill", "transparent"); });
+    r.addEventListener("click", () => { state.sector = data[r.dataset.i].name; $("sectorFilter").value = state.sector; renderAll(); });
+  });
+}
+
+// ---------- company table ----------
+const COLS = [
+  { key: "ticker", label: "Ticker", l: true },
+  { key: "name", label: "Company", l: true },
+  { key: "sector", label: "Sector", l: true },
+  { key: "marketCap", label: "Mkt Cap", f: fmtBn },
+  { key: "ev", label: "EV", f: fmtBn },
+  ...METRICS.map((m) => ({ key: m.key, label: m.label, f: fx, m })),
+];
+function filtered() {
+  const q = state.search.trim().toLowerCase();
+  return state.companies.filter((c) =>
+    (!state.sector || c.sector === state.sector) &&
+    (!q || c.ticker.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || (c.subIndustry || "").toLowerCase().includes(q)));
+}
+function renderCoTable() {
+  const { key, dir } = state.sort;
+  const list = filtered().sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (va == null) return 1; if (vb == null) return -1;
+    return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * dir;
+  });
+  $("count").textContent = list.length;
+  // sector medians per metric, used to shade each company's multiples
+  const medians = {};
+  for (const s of sectors()) {
+    const sl = state.companies.filter((c) => c.sector === s);
+    medians[s] = Object.fromEntries(METRICS.map((m) => [m.key, stats(sl, m).med]));
+  }
+  let h = "<thead><tr>" + COLS.map((c) =>
+    `<th class="sort ${c.l ? "l" : ""}" data-k="${c.key}">${c.label}${key === c.key ? (dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr></thead><tbody>";
+  for (const c of list) {
+    h += "<tr>" + COLS.map((col) => {
+      if (!col.f) return `<td class="l"${col.key === "name" ? ` title="${esc(c.subIndustry || "")}"` : ""}>${esc(c[col.key] ?? "")}</td>`;
+      const v = c[col.key];
+      // values excluded from sector stats (negative or above cap) are dimmed
+      const excluded = col.m && v != null && clean(c, col.m) == null;
+      let attrs = excluded ? ' class="nm" title="Excluded from sector stats"' : "";
+      const med = col.m && medians[c.sector]?.[col.key];
+      if (col.m && !excluded && v != null && med != null && v !== med) {
+        const diff = (v / med - 1) * 100;
+        attrs = ` class="${v > med ? "above" : "below"}" title="Sector median ${med.toFixed(1)}x (${diff > 0 ? "+" : ""}${diff.toFixed(0)}%)"`;
+      }
+      return `<td${attrs}>${col.m && v != null && v <= 0 ? '<span class="nm">NM</span>' : col.f(v)}</td>`;
+    }).join("") + "</tr>";
+  }
+  $("coTable").innerHTML = h + "</tbody>";
+  $("coTable").querySelectorAll("th.sort").forEach((th) =>
+    th.addEventListener("click", () => {
+      const k = th.dataset.k;
+      state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (COLS.find((c) => c.key === k).l ? 1 : -1) };
+      renderCoTable();
+    }));
+}
+
+function exportCsv() {
+  const cols = ["ticker", "name", "sector", "subIndustry", "price", "marketCap", "ev", "ltmEps", "ntmEps", "ltmEbitda", "ntmEbitda", "ltmRevenue", "ntmRevenue", ...METRICS.map((m) => m.key)];
+  const lines = [cols.join(",")].concat(filtered().map((c) => cols.map((k) => {
+    const v = c[k]; return v == null ? "" : typeof v === "string" ? `"${v.replace(/"/g, '""')}"` : v;
+  }).join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+  a.download = `sp500_multiples_asof_${state.asOf || new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+}
+
+// ---------- history small multiples ----------
+const HIST_METRICS = [
+  { key: "pe", label: "P/E LTM", cap: "capPe" },
+  { key: "ev", label: "EV/EBITDA LTM", cap: "capEv" },
+  { key: "er", label: "EV/Revenue LTM", cap: "capRev" },
+];
+const PERIODS = [
+  { key: "ytd", label: "YTD" },
+  { key: "1y", label: "1Y / LTM", years: 1 },
+  { key: "3y", label: "3Y", years: 3 },
+  { key: "5y", label: "5Y", years: 5 },
+];
+const hist = { data: null, metric: "pe", period: "1y", panels: [] };
+
+function histStats() {
+  const { dates, series } = hist.data;
+  const m = HIST_METRICS.find((x) => x.key === hist.metric), cap = Number($(m.cap).value);
+  // window ends at the as-of date when one is picked
+  const end = state.asOf && state.asOf < dates[dates.length - 1] ? state.asOf : dates[dates.length - 1];
+  const now = new Date(end + "T00:00:00");
+  const p = PERIODS.find((x) => x.key === hist.period);
+  const from = p.years ? new Date(now.getFullYear() - p.years, now.getMonth(), now.getDate()) : new Date(now.getFullYear(), 0, 1);
+  const idx = dates.map((d, i) => i).filter((i) => new Date(dates[i] + "T00:00:00") >= from && dates[i] <= end);
+  const groups = [{ name: "S&P 500", list: state.companies, idx: true }]
+    .concat(sectors().map((s) => ({ name: s, list: state.companies.filter((c) => c.sector === s) })));
+  for (const g of groups) {
+    const rows = g.list.map((c) => series[c.ticker]?.[m.key]).filter(Boolean);
+    g.pts = idx.map((i) => {
+      const vals = rows.map((r) => r[i]).filter((v) => v != null && v > 0 && !(cap > 0 && v > cap)).sort((a, b) => a - b);
+      return vals.length >= 5 ? { date: dates[i], n: vals.length, q1: pct(vals, 0.25), med: pct(vals, 0.5), q3: pct(vals, 0.75) } : { date: dates[i], n: vals.length };
+    });
+  }
+  return groups;
+}
+
+function renderHistory() {
+  if (!hist.data?.dates?.length || !state.companies.length) return;
+  const m = HIST_METRICS.find((x) => x.key === hist.metric);
+  const p = PERIODS.find((x) => x.key === hist.period);
+  $("histTitle").textContent = `Sector ${m.label} over time — ${p.label}`;
+  const groups = histStats();
+  const spx = groups[0].pts;
+  const grid = $("histGrid");
+  grid.innerHTML = groups.map((g, gi) => `<div class="panel ${g.idx ? "idx" : ""}" data-g="${gi}">
+      <div class="panel-head"><b>${esc(g.name)}</b><span class="panel-val"></span></div>
+      <div class="panel-head"><span class="chg c1"></span><span class="chg c2"></span></div>
+      <svg></svg></div>`).join("");
+  const fmtD = (s) => new Date(s + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+  hist.panels = groups.map((g, gi) => {
+    const el = grid.children[gi], svg = el.querySelector("svg");
+    const W = svg.clientWidth || 280, H = 120, padL = 30, padR = 6, padT = 8, padB = 18;
+    const all = g.pts.flatMap((pt) => (pt.med != null ? [pt.q1, pt.q3] : [])).concat(spx.map((pt) => pt.med).filter((v) => v != null));
+    const lo = Math.max(0, Math.min(...all) * 0.92), hi = Math.max(...all) * 1.05;
+    const n = g.pts.length;
+    const x = (i) => padL + (i / Math.max(1, n - 1)) * (W - padL - padR);
+    const y = (v) => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
+    const path = (acc) => {
+      let dStr = "", pen = false;
+      g.pts.forEach((pt, i) => { const v = acc(pt, i); if (v == null) { pen = false; return; } dStr += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1); pen = true; });
+      return dStr;
+    };
+    // IQR band as contiguous segments
+    let band = "", seg = [];
+    const flush = () => {
+      if (seg.length > 1) band += "M" + seg.map((i) => `${x(i).toFixed(1)} ${y(g.pts[i].q3).toFixed(1)}`).join("L") +
+        "L" + seg.slice().reverse().map((i) => `${x(i).toFixed(1)} ${y(g.pts[i].q1).toFixed(1)}`).join("L") + "Z";
+      seg = [];
+    };
+    g.pts.forEach((pt, i) => (pt.med != null ? seg.push(i) : flush())); flush();
+    const ticks = [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1];
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("height", H);
+    svg.innerHTML =
+      ticks.map((t) => `<line x1="${padL}" x2="${W - padR}" y1="${y(t)}" y2="${y(t)}" stroke="var(--border)"/>` +
+        `<text x="${padL - 4}" y="${y(t) + 3}" text-anchor="end" font-size="10" fill="var(--muted)">${t.toFixed(0)}x</text>`).join("") +
+      `<text x="${padL}" y="${H - 4}" font-size="10" fill="var(--muted)">${fmtD(g.pts[0].date)}</text>` +
+      `<text x="${W - padR}" y="${H - 4}" text-anchor="end" font-size="10" fill="var(--muted)">${fmtD(g.pts[n - 1].date)}</text>` +
+      `<path d="${band}" fill="var(--accent-soft)"/>` +
+      (g.idx ? "" : `<path d="${path((pt, i) => spx[i].med)}" fill="none" stroke="var(--text-2)" stroke-width="1" stroke-dasharray="3 3"/>`) +
+      `<path d="${path((pt) => pt.med)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>` +
+      `<line class="cross" y1="${padT}" y2="${H - padB}" stroke="var(--text-2)" visibility="hidden"/>` +
+      `<circle class="dot" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>` +
+      `<rect class="hit" x="${padL}" y="0" width="${W - padL - padR}" height="${H}" fill="transparent"/>`;
+    const panel = { g, el, svg, x, y, n, padL, W, padR };
+    svg.querySelector(".hit").addEventListener("pointermove", (e) => {
+      const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (W / r.width);
+      histHover(Math.round(((px - padL) / (W - padL - padR)) * (n - 1)));
+    });
+    svg.querySelector(".hit").addEventListener("pointerleave", () => histHover(null));
+    return panel;
+  });
+  histHover(null);
+}
+
+// synced crosshair: every panel shows its value at the hovered week; default = latest week vs period start
+function histHover(i) {
+  for (const p of hist.panels) {
+    const pts = p.g.pts, last = pts.length - 1;
+    const k = i == null ? last : Math.max(0, Math.min(last, i));
+    const pt = pts[k], first = pts.find((q) => q.med != null);
+    const cross = p.svg.querySelector(".cross"), dot = p.svg.querySelector(".dot");
+    p.el.querySelector(".panel-val").textContent = pt.med != null ? pt.med.toFixed(1) + "x" : "NM";
+    if (i == null) {
+      const cur = [...pts].reverse().find((q) => q.med != null);
+      const dx = cur && first ? cur.med - first.med : null;
+      p.el.querySelector(".c1").textContent = dx == null ? "" : `${dx >= 0 ? "+" : ""}${dx.toFixed(1)}x (${dx >= 0 ? "+" : ""}${((cur.med / first.med - 1) * 100).toFixed(0)}%) over period`;
+      p.el.querySelector(".c2").textContent = pt.med != null ? `IQR ${pt.q1.toFixed(1)}–${pt.q3.toFixed(1)}x` : "";
+      cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden");
+    } else {
+      p.el.querySelector(".c1").textContent = new Date(pt.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + ` · n=${pt.n}`;
+      p.el.querySelector(".c2").textContent = pt.med != null ? `IQR ${pt.q1.toFixed(1)}–${pt.q3.toFixed(1)}x` : "";
+      cross.setAttribute("x1", p.x(k)); cross.setAttribute("x2", p.x(k)); cross.setAttribute("visibility", "visible");
+      if (pt.med != null) { dot.setAttribute("cx", p.x(k)); dot.setAttribute("cy", p.y(pt.med)); dot.setAttribute("visibility", "visible"); }
+      else dot.setAttribute("visibility", "hidden");
+    }
+  }
+}
+
+async function loadHistory() {
+  const h = await (await fetch("/api/history")).json();
+  const j = h.histJob;
+  if (h.dates?.length) { hist.data = h; renderHistory(); }
+  $("histStatus").textContent = j?.running
+    ? `Building history from SEC filings… ${j.done}/${j.total}`
+    : h.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
+  if (j?.running) setTimeout(loadHistory, 3000);
+}
+
+function renderAll() { renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); }
+
+// ---------- data loading ----------
+const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const fmtDay = (s) => new Date(s + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+state.asOf = new URLSearchParams(location.search).get("asof") || "";
+
+async function loadDates() {
+  const r = await (await fetch("/api/dates")).json();
+  $("asOfDate").max = today();
+  if (r.historyFrom) $("asOfDate").min = r.historyFrom;
+  $("snapSel").innerHTML = '<option value="">Saved snapshots…</option>' +
+    r.snapshots.slice().reverse().map((d) => `<option value="${d}">${fmtDay(d)}</option>`).join("");
+  $("snapSel").value = r.snapshots.includes(state.asOf) ? state.asOf : "";
+}
+
+async function setAsOf(date) {
+  state.asOf = !date || date >= today() ? "" : date;
+  const u = new URL(location.href);
+  state.asOf ? u.searchParams.set("asof", state.asOf) : u.searchParams.delete("asof");
+  history.replaceState(null, "", u);
+  await load();
+}
+
+async function load() {
+  const d = await (await fetch("/api/data" + (state.asOf ? "?date=" + state.asOf : ""))).json();
+  if (d.error) { $("asOfBanner").hidden = false; $("asOfBanner").textContent = d.error; return; }
+  state.companies = (d.companies || []).filter((c) => !c.error || c.price != null);
+  $("asOfDate").value = state.asOf || today();
+  $("snapSel").value = d.source === "snapshot" ? state.asOf : "";
+  const banner = $("asOfBanner");
+  banner.hidden = d.source === "live";
+  if (d.source === "history")
+    banner.innerHTML = `<b>Historical view — week ending ${fmtDay(d.effectiveDate)}.</b> LTM multiples rebuilt from SEC filings available on that date
+      (prices as of that week); NTM columns show NM because past consensus estimates aren't available. Pick a saved snapshot for a full view incl. NTM.`;
+  else if (d.source === "snapshot")
+    banner.innerHTML = `<b>Saved snapshot from ${new Date(d.updatedAt).toLocaleString()}</b> — full data incl. NTM, exactly as pulled that day.`;
+  $("asOf").textContent = !d.updatedAt
+    ? "Fetching data for the first time — this takes a couple of minutes…"
+    : d.source === "history"
+      ? `${state.companies.length} constituents · as of ${fmtDay(d.effectiveDate)} (reconstructed)`
+      : `${state.companies.length} constituents · data as of ${new Date(d.updatedAt).toLocaleString()}`;
+  const sel = $("sectorFilter");
+  sel.innerHTML = '<option value="">All sectors</option>' + sectors().map((s) => `<option>${esc(s)}</option>`).join("");
+  sel.value = state.sector;
+  renderAll();
+  poll(d.job);
+}
+let polling = false;
+async function poll(job) {
+  const running = job && job.running;
+  $("progWrap").hidden = !running;
+  $("refreshBtn").disabled = running;
+  if (!running) { $("progText").textContent = job?.errors?.length ? `${job.errors.length} tickers failed` : ""; return; }
+  $("prog").style.width = job.total ? (100 * job.done / job.total) + "%" : "3%";
+  $("progText").textContent = job.total ? `Fetching ${job.done}/${job.total}` : "Fetching constituents…";
+  if (polling) return;
+  polling = true;
+  setTimeout(async () => {
+    polling = false;
+    const s = await (await fetch("/api/status")).json();
+    if (!s.job.running) loadDates().then(load).then(loadHistory); else poll(s.job);
+  }, 1500);
+}
+
+$("metricSeg").innerHTML = METRICS.map((m) => `<button data-k="${m.key}" aria-pressed="${m.key === state.chartMetric}">${m.label}</button>`).join("");
+$("metricSeg").addEventListener("click", (e) => {
+  const k = e.target.dataset.k; if (!k) return;
+  state.chartMetric = k;
+  $("metricSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.k === k));
+  renderChart();
+});
+const seg = (id, items, get, set) => {
+  $(id).innerHTML = items.map((m) => `<button data-k="${m.key}" aria-pressed="${m.key === get()}">${m.label}</button>`).join("");
+  $(id).addEventListener("click", (e) => {
+    const k = e.target.dataset.k; if (!k) return;
+    set(k);
+    $(id).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.k === k));
+    renderHistory();
+  });
+};
+seg("histMetricSeg", HIST_METRICS, () => hist.metric, (k) => (hist.metric = k));
+seg("periodSeg", PERIODS, () => hist.period, (k) => (hist.period = k));
+$("search").addEventListener("input", (e) => { state.search = e.target.value; renderCoTable(); });
+$("sectorFilter").addEventListener("change", (e) => { state.sector = e.target.value; renderAll(); });
+["capPe", "capEv", "capRev"].forEach((id) => $(id).addEventListener("input", renderAll));
+$("csvBtn").addEventListener("click", exportCsv);
+$("asOfDate").addEventListener("change", (e) => setAsOf(e.target.value));
+$("snapSel").addEventListener("change", (e) => e.target.value && setAsOf(e.target.value));
+$("latestBtn").addEventListener("click", () => setAsOf(""));
+$("refreshBtn").addEventListener("click", async () => { await fetch("/api/refresh", { method: "POST" }); load(); });
+window.addEventListener("resize", () => { renderChart(); renderHistory(); });
+loadDates().then(load).then(loadHistory);
+</script>
+</body>
+</html>
