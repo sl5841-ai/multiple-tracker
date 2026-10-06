@@ -4,7 +4,8 @@
   "description": "",
   "main": "server.mjs",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "build:data": "node build-data.mjs"
   },
   "keywords": [],
   "author": "",

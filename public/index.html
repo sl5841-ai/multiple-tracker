@@ -91,6 +91,12 @@
   .panel svg { display: block; width: 100%; overflow: visible; }
   .asof { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; font-size: 13px; }
   .banner { background: var(--sel); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+  .track { position: relative; width: 70px; height: 10px; display: inline-block; vertical-align: middle; }
+  .track::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 2px; background: var(--border); border-radius: 1px; }
+  .track i { position: absolute; top: 1px; width: 1px; height: 8px; background: var(--text-2); }
+  .track b { position: absolute; top: 1px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+  .read { font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--text); white-space: nowrap; }
+  .read.lo, .read.hi { border-color: var(--accent); background: var(--sel); }
   .pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); }
   @media (max-width: 640px) { input[type="search"] { width: 100%; } }
 </style>
@@ -157,6 +163,22 @@
       Weekly, LTM basis only: historical NTM consensus estimates aren't available from free sources. Fundamentals are from SEC EDGAR 10-Q/10-K XBRL,
       applied point-in-time (a quarter counts only once it was filed), with prices from Yahoo Finance; historical EV = price × diluted shares + net debt.
       Uses today's constituents (survivorship bias). The latest point can differ from the snapshot above where EDGAR lags a recent filing. Same caps/NM rules as above.
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="valTitle">Valuation vs. history</h2>
+      <div class="row"><span class="sub">Compare with median of the last</span><div class="seg" id="valSeg"></div></div>
+    </div>
+    <div class="table-wrap"><table id="valTable"></table></div>
+    <div class="note">
+      Each sector's current LTM median multiple against its own weekly median over the lookback window (ending at the as-of date).
+      The bar shows where today sits between the window's low and high; the tick is the window median.
+      Reading: <b>Below history</b> / <b>Above history</b> = at least two multiples more than 5% away from median in that direction and none the other way;
+      <b>Mixed</b> = multiples disagree; <b>In line</b> otherwise. Sorted from furthest below to furthest above.
+      This is a valuation screen, not investment advice — a low multiple can reflect weaker growth or margin expectations.
+      LTM only, today's constituents; Financials' EV multiples exclude banks and insurers; REIT P/Es are distorted (REITs trade on FFO).
     </div>
   </section>
 
@@ -374,13 +396,13 @@ const PERIODS = [
 ];
 const hist = { data: null, metric: "pe", period: "1y", panels: [] };
 
-function histStats() {
+function histStats(metricKey = hist.metric, periodKey = hist.period) {
   const { dates, series } = hist.data;
-  const m = HIST_METRICS.find((x) => x.key === hist.metric), cap = Number($(m.cap).value);
+  const m = HIST_METRICS.find((x) => x.key === metricKey), cap = Number($(m.cap).value);
   // window ends at the as-of date when one is picked
   const end = state.asOf && state.asOf < dates[dates.length - 1] ? state.asOf : dates[dates.length - 1];
   const now = new Date(end + "T00:00:00");
-  const p = PERIODS.find((x) => x.key === hist.period);
+  const p = PERIODS.find((x) => x.key === periodKey);
   const from = p.years ? new Date(now.getFullYear() - p.years, now.getMonth(), now.getDate()) : new Date(now.getFullYear(), 0, 1);
   const idx = dates.map((d, i) => i).filter((i) => new Date(dates[i] + "T00:00:00") >= from && dates[i] <= end);
   const groups = [{ name: "S&P 500", list: state.companies, idx: true }]
@@ -478,30 +500,111 @@ function histHover(i) {
   }
 }
 
+// history.json is large (~4 MB), so it is fetched once and reused
+let histPromise = null;
+function ensureHistory() {
+  return (histPromise ??= getJson("data/history.json").catch(() => null).then((h) => {
+    if (h?.dates?.length) { hist.data = h; $("asOfDate").min = h.dates[0]; }
+    return hist.data;
+  }));
+}
 async function loadHistory() {
-  const h = await (await fetch("/api/history")).json();
-  const j = h.histJob;
-  if (h.dates?.length) { hist.data = h; renderHistory(); }
-  $("histStatus").textContent = j?.running
-    ? `Building history from SEC filings… ${j.done}/${j.total}`
-    : h.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
-  if (j?.running) setTimeout(loadHistory, 3000);
+  const h = await ensureHistory();
+  $("histStatus").textContent = h?.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
+  renderHistory(); renderValuation();
 }
 
-function renderAll() { renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); }
+// ---------- valuation vs history ----------
+const VAL_PERIODS = PERIODS.filter((p) => p.years);
+const val = { period: "5y" };
+function renderValuation() {
+  if (!hist.data?.dates?.length || !state.companies.length) return;
+  const TH = 5; // % away from median that counts as above/below
+  const p = VAL_PERIODS.find((x) => x.key === val.period);
+  const rows = new Map();
+  let week = "";
+  for (const m of HIST_METRICS) {
+    for (const g of histStats(m.key, val.period)) {
+      week = g.pts.at(-1)?.date ?? week;
+      const ser = g.pts.map((pt) => pt.med).filter((v) => v != null);
+      const r = rows.get(g.name) ?? { name: g.name, idx: g.idx, m: {} };
+      rows.set(g.name, r);
+      // needs a value in the latest week and enough history to make a median meaningful
+      if (g.pts.at(-1)?.med == null || ser.length < 12) continue;
+      const sorted = [...ser].sort((a, b) => a - b), cur = ser.at(-1), med = pct(sorted, 0.5);
+      r.m[m.key] = { cur, med, diff: (cur / med - 1) * 100, lo: sorted[0], hi: sorted.at(-1),
+        rank: (sorted.filter((v) => v <= cur).length / sorted.length) * 100 };
+    }
+  }
+  $("valTitle").textContent = `Valuation vs. history — LTM multiples, week ending ${week ? fmtDay(week) : "–"}, vs ${p.years}-year median`;
+  const list = [...rows.values()];
+  for (const r of list) {
+    const ds = Object.values(r.m).map((x) => x.diff);
+    const below = ds.filter((d) => d <= -TH).length, above = ds.filter((d) => d >= TH).length;
+    r.avg = ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null;
+    r.read = !ds.length ? ["–", ""] : below && above ? ["Mixed", ""] : below >= 2 ? ["Below history", "lo"] : above >= 2 ? ["Above history", "hi"] : ["In line", ""];
+  }
+  list.sort((a, b) => (a.idx ? 1 : b.idx ? -1 : (a.avg ?? 1e9) - (b.avg ?? 1e9)));
+  const pos = (x, v) => (x.hi > x.lo ? ((v - x.lo) / (x.hi - x.lo)) * 100 : 50);
+  let h = '<thead><tr class="grp"><th></th><th></th>' + HIST_METRICS.map((m) => `<th colspan="4" class="gs">${m.label}</th>`).join("") +
+    '</tr><tr><th>Sector</th><th class="l">Reading</th>' +
+    HIST_METRICS.map(() => `<th class="gs">Now</th><th>${p.years}Y median</th><th>vs median</th><th>Low – high</th>`).join("") + "</tr></thead><tbody>";
+  for (const r of list) {
+    h += `<tr class="${r.idx ? "total" : ""}"><td>${esc(r.name)}</td><td class="l"><span class="read ${r.read[1]}">${r.read[0]}</span></td>`;
+    for (const m of HIST_METRICS) {
+      const x = r.m[m.key];
+      if (!x) { h += '<td class="gs nm">NM</td><td class="nm">NM</td><td class="nm">–</td><td></td>'; continue; }
+      const t = `title="Range ${x.lo.toFixed(1)}x – ${x.hi.toFixed(1)}x · today is higher than ${x.rank.toFixed(0)}% of weeks"`;
+      h += `<td class="gs med">${x.cur.toFixed(1)}x</td><td>${x.med.toFixed(1)}x</td><td>${x.diff >= 0 ? "+" : ""}${x.diff.toFixed(0)}%</td>` +
+        `<td ${t}><span class="track"><i style="left:${pos(x, x.med).toFixed(0)}%"></i><b style="left:${pos(x, x.cur).toFixed(0)}%"></b></span></td>`;
+    }
+    h += "</tr>";
+  }
+  $("valTable").innerHTML = h + "</tbody>";
+}
+
+function renderAll() { renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); }
 
 // ---------- data loading ----------
 const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const fmtDay = (s) => new Date(s + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 state.asOf = new URLSearchParams(location.search).get("asof") || "";
 
+// All data is static JSON under data/ (written by the local server or by build-data.mjs), so the page
+// works the same on a static host. The refresh API only exists when the local server is running.
+const getJson = async (u) => {
+  const r = await fetch(u, { cache: "no-cache" });
+  if (!r.ok) throw new Error(`${u}: HTTP ${r.status}`);
+  return r.json();
+};
+const src = { latest: null, snapshots: [], hasServer: false };
+
 async function loadDates() {
-  const r = await (await fetch("/api/dates")).json();
+  src.latest = await getJson("data/latest.json").catch(() => ({ updatedAt: null, companies: [] }));
+  src.snapshots = (await getJson("data/dates.json").catch(() => ({ snapshots: [] }))).snapshots;
   $("asOfDate").max = today();
-  if (r.historyFrom) $("asOfDate").min = r.historyFrom;
   $("snapSel").innerHTML = '<option value="">Saved snapshots…</option>' +
-    r.snapshots.slice().reverse().map((d) => `<option value="${d}">${fmtDay(d)}</option>`).join("");
-  $("snapSel").value = r.snapshots.includes(state.asOf) ? state.asOf : "";
+    src.snapshots.slice().reverse().map((d) => `<option value="${d}">${fmtDay(d)}</option>`).join("");
+  $("snapSel").value = src.snapshots.includes(state.asOf) ? state.asOf : "";
+}
+
+// Latest pull, a saved snapshot for that exact date, or LTM multiples rebuilt from the weekly history
+// using the last week on or before the date.
+async function getData(date) {
+  if (!date) return { ...src.latest, source: "live" };
+  if (src.snapshots.includes(date)) return { ...(await getJson(`data/snapshots/${date}.json`)), source: "snapshot" };
+  const h = await ensureHistory();
+  const i = h ? h.dates.findLastIndex((d) => d <= date) : -1;
+  if (i < 0) return { error: `No history on or before ${date}` };
+  const at = (c, k) => h.series[c.ticker]?.[k]?.[i] ?? null;
+  const companies = src.latest.companies.map((c) => ({
+    ticker: c.ticker, name: c.name, sector: c.sector, subIndustry: c.subIndustry,
+    marketCap: at(c, "mc") != null ? at(c, "mc") * 1e6 : null,
+    ev: at(c, "evd") != null ? at(c, "evd") * 1e6 : null,
+    peLtm: at(c, "pe"), peNtm: null, evEbitdaLtm: at(c, "ev"), evEbitdaNtm: null,
+    evRevLtm: at(c, "er"), evRevNtm: null,
+  }));
+  return { updatedAt: h.updatedAt, companies, source: "history", effectiveDate: h.dates[i] };
 }
 
 async function setAsOf(date) {
@@ -513,7 +616,7 @@ async function setAsOf(date) {
 }
 
 async function load() {
-  const d = await (await fetch("/api/data" + (state.asOf ? "?date=" + state.asOf : ""))).json();
+  const d = await getData(state.asOf);
   if (d.error) { $("asOfBanner").hidden = false; $("asOfBanner").textContent = d.error; return; }
   state.companies = (d.companies || []).filter((c) => !c.error || c.price != null);
   $("asOfDate").value = state.asOf || today();
@@ -526,7 +629,7 @@ async function load() {
   else if (d.source === "snapshot")
     banner.innerHTML = `<b>Saved snapshot from ${new Date(d.updatedAt).toLocaleString()}</b> — full data incl. NTM, exactly as pulled that day.`;
   $("asOf").textContent = !d.updatedAt
-    ? "Fetching data for the first time — this takes a couple of minutes…"
+    ? (src.hasServer ? "Fetching data for the first time — this takes a couple of minutes…" : "No data has been built yet")
     : d.source === "history"
       ? `${state.companies.length} constituents · as of ${fmtDay(d.effectiveDate)} (reconstructed)`
       : `${state.companies.length} constituents · data as of ${new Date(d.updatedAt).toLocaleString()}`;
@@ -534,23 +637,30 @@ async function load() {
   sel.innerHTML = '<option value="">All sectors</option>' + sectors().map((s) => `<option>${esc(s)}</option>`).join("");
   sel.value = state.sector;
   renderAll();
-  poll(d.job);
 }
-let polling = false;
-async function poll(job) {
-  const running = job && job.running;
-  $("progWrap").hidden = !running;
-  $("refreshBtn").disabled = running;
-  if (!running) { $("progText").textContent = job?.errors?.length ? `${job.errors.length} tickers failed` : ""; return; }
-  $("prog").style.width = job.total ? (100 * job.done / job.total) + "%" : "3%";
-  $("progText").textContent = job.total ? `Fetching ${job.done}/${job.total}` : "Fetching constituents…";
-  if (polling) return;
-  polling = true;
-  setTimeout(async () => {
-    polling = false;
-    const s = await (await fetch("/api/status")).json();
-    if (!s.job.running) loadDates().then(load).then(loadHistory); else poll(s.job);
-  }, 1500);
+
+// Local server only: show refresh progress and reload the data files when a job finishes.
+let wasRunning = false;
+async function pollStatus() {
+  let s;
+  try { s = await getJson("/api/status"); } catch { $("refreshBtn").hidden = true; return; } // static host: no refresh API
+  src.hasServer = true;
+  $("refreshBtn").hidden = false;
+  const job = s.job.running ? s.job : s.histJob.running ? s.histJob : null;
+  $("progWrap").hidden = !job;
+  $("refreshBtn").disabled = !!job;
+  if (job) {
+    $("prog").style.width = job.total ? (100 * job.done / job.total) + "%" : "3%";
+    $("progText").textContent = s.job.running
+      ? (job.total ? `Fetching ${job.done}/${job.total}` : "Fetching constituents…")
+      : `Building history from SEC filings… ${job.done}/${job.total}`;
+    wasRunning = true;
+    setTimeout(pollStatus, 1500);
+  } else {
+    const errs = s.job.errors.length + s.histJob.errors.length;
+    $("progText").textContent = errs ? `${errs} tickers failed` : "";
+    if (wasRunning) { wasRunning = false; histPromise = null; await loadDates(); await load(); await loadHistory(); }
+  }
 }
 
 $("metricSeg").innerHTML = METRICS.map((m) => `<button data-k="${m.key}" aria-pressed="${m.key === state.chartMetric}">${m.label}</button>`).join("");
@@ -571,6 +681,13 @@ const seg = (id, items, get, set) => {
 };
 seg("histMetricSeg", HIST_METRICS, () => hist.metric, (k) => (hist.metric = k));
 seg("periodSeg", PERIODS, () => hist.period, (k) => (hist.period = k));
+$("valSeg").innerHTML = VAL_PERIODS.map((p) => `<button data-k="${p.key}" aria-pressed="${p.key === val.period}">${p.years}Y</button>`).join("");
+$("valSeg").addEventListener("click", (e) => {
+  const k = e.target.dataset.k; if (!k) return;
+  val.period = k;
+  $("valSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.k === k));
+  renderValuation();
+});
 $("search").addEventListener("input", (e) => { state.search = e.target.value; renderCoTable(); });
 $("sectorFilter").addEventListener("change", (e) => { state.sector = e.target.value; renderAll(); });
 ["capPe", "capEv", "capRev"].forEach((id) => $(id).addEventListener("input", renderAll));
@@ -578,9 +695,10 @@ $("csvBtn").addEventListener("click", exportCsv);
 $("asOfDate").addEventListener("change", (e) => setAsOf(e.target.value));
 $("snapSel").addEventListener("change", (e) => e.target.value && setAsOf(e.target.value));
 $("latestBtn").addEventListener("click", () => setAsOf(""));
-$("refreshBtn").addEventListener("click", async () => { await fetch("/api/refresh", { method: "POST" }); load(); });
+$("refreshBtn").addEventListener("click", async () => { await fetch("/api/refresh", { method: "POST" }); pollStatus(); });
 window.addEventListener("resize", () => { renderChart(); renderHistory(); });
-loadDates().then(load).then(loadHistory);
+$("refreshBtn").hidden = true;
+loadDates().then(load).then(loadHistory).then(pollStatus);
 </script>
 </body>
 </html>
