@@ -16,7 +16,7 @@ npm start        # then open http://localhost:3000
 
 ## Sector multiples over time
 
-Weekly LTM P/E, EV/EBITDA and EV/Revenue by sector (median + 25th–75th band) over YTD / 1Y / 3Y / 5Y.
+Weekly LTM P/E, EV/EBITDA and EV/Revenue by sector (median + 25th–75th band, with a 200-day / 40-week moving average of the median) over YTD / 1Y / 3Y / 5Y.
 
 - Fundamentals: SEC EDGAR XBRL (`history.mjs`), point-in-time — a quarter only counts once it was filed. Prices + splits: Yahoo weekly chart.
 - LTM = annual value, or four chained quarters (Q4 derived from 10-K less 9M YTD). EBITDA = operating income + D&A.

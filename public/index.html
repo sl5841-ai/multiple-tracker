@@ -15,6 +15,7 @@
     --muted: #8a8984;
     --accent: #2a78d6;
     --accent-soft: rgba(42, 120, 214, 0.22);
+    --ma: #eb6834;
     --hover: #f0f0ec;
     --sel: #e8f0fb;
     --good-bg: rgba(0, 131, 0, 0.14);
@@ -24,13 +25,13 @@
     :root:not([data-theme="light"]) {
       color-scheme: dark;
       --bg: #111110; --surface: #1a1a19; --border: #2e2e2c; --text: #fff; --text-2: #c3c2b7;
-      --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+      --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --ma: #d95926; --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #111110; --surface: #1a1a19; --border: #2e2e2c; --text: #fff; --text-2: #c3c2b7;
-    --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+    --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --ma: #d95926; --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -80,6 +81,7 @@
   .legend span::before { content: ""; display: inline-block; vertical-align: middle; margin-right: 6px; }
   .lg-iqr::before { width: 18px; height: 10px; background: var(--accent-soft); border-radius: 2px; }
   .lg-med::before { width: 3px; height: 14px; background: var(--accent); }
+  .lg-ma::before { width: 18px; height: 2px; background: var(--ma); }
   .lg-idx::before { width: 0; height: 14px; border-left: 1px dashed var(--text-2); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
   .panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px 10px 4px; position: relative; }
@@ -155,11 +157,12 @@
       </div>
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
-      <div class="legend"><span class="lg-iqr">25th–75th</span><span class="lg-med">Median</span><span class="lg-idx">S&amp;P 500 median</span></div>
+      <div class="legend"><span class="lg-iqr">25th–75th</span><span class="lg-med">Median</span><span class="lg-ma">200-day moving avg</span><span class="lg-idx">S&amp;P 500 median</span></div>
       <span class="sub" id="histStatus"></span>
     </div>
     <div class="grid" id="histGrid"></div>
     <div class="note">
+      The 200-day moving average is the 40-week average of the sector median (the data is weekly, and 200 trading days is 40 weeks).
       Weekly, LTM basis only: historical NTM consensus estimates aren't available from free sources. Fundamentals are from SEC EDGAR 10-Q/10-K XBRL,
       applied point-in-time (a quarter counts only once it was filed), with prices from Yahoo Finance; historical EV = price × diluted shares + net debt.
       Uses today's constituents (survivorship bias). The latest point can differ from the snapshot above where EDGAR lags a recent filing. Same caps/NM rules as above.
@@ -394,6 +397,7 @@ const PERIODS = [
   { key: "3y", label: "3Y", years: 3 },
   { key: "5y", label: "5Y", years: 5 },
 ];
+const MA_WEEKS = 40;
 const hist = { data: null, metric: "pe", period: "1y", panels: [] };
 
 function histStats(metricKey = hist.metric, periodKey = hist.period) {
@@ -409,9 +413,18 @@ function histStats(metricKey = hist.metric, periodKey = hist.period) {
     .concat(sectors().map((s) => ({ name: s, list: state.companies.filter((c) => c.sector === s) })));
   for (const g of groups) {
     const rows = g.list.map((c) => series[c.ticker]?.[m.key]).filter(Boolean);
-    g.pts = idx.map((i) => {
+    const statAt = (i) => {
       const vals = rows.map((r) => r[i]).filter((v) => v != null && v > 0 && !(cap > 0 && v > cap)).sort((a, b) => a - b);
       return vals.length >= 5 ? { date: dates[i], n: vals.length, q1: pct(vals, 0.25), med: pct(vals, 0.5), q3: pct(vals, 0.75) } : { date: dates[i], n: vals.length };
+    };
+    // 200-day moving average of the median: the series is weekly, so 200 trading days = 40 weeks.
+    // Weeks before the visible window are included so the average is available from the window's first point.
+    const lead = Math.min(MA_WEEKS - 1, idx[0] ?? 0), ext = [];
+    for (let i = (idx[0] ?? 0) - lead; i <= (idx.at(-1) ?? -1); i++) ext.push(statAt(i));
+    g.pts = ext.slice(lead);
+    g.pts.forEach((pt, k) => {
+      const win = ext.slice(Math.max(0, k + lead - MA_WEEKS + 1), k + lead + 1).map((x) => x.med).filter((v) => v != null);
+      pt.ma = win.length >= MA_WEEKS * 0.9 ? win.reduce((a, b) => a + b, 0) / win.length : null;
     });
   }
   return groups;
@@ -433,7 +446,8 @@ function renderHistory() {
   hist.panels = groups.map((g, gi) => {
     const el = grid.children[gi], svg = el.querySelector("svg");
     const W = svg.clientWidth || 280, H = 120, padL = 30, padR = 6, padT = 8, padB = 18;
-    const all = g.pts.flatMap((pt) => (pt.med != null ? [pt.q1, pt.q3] : [])).concat(spx.map((pt) => pt.med).filter((v) => v != null));
+    const all = g.pts.flatMap((pt) => (pt.med != null ? [pt.q1, pt.q3] : [])).concat(spx.map((pt) => pt.med).filter((v) => v != null))
+      .concat(g.pts.map((pt) => pt.ma).filter((v) => v != null));
     const lo = Math.max(0, Math.min(...all) * 0.92), hi = Math.max(...all) * 1.05;
     const n = g.pts.length;
     const x = (i) => padL + (i / Math.max(1, n - 1)) * (W - padL - padR);
@@ -462,6 +476,7 @@ function renderHistory() {
       `<path d="${band}" fill="var(--accent-soft)"/>` +
       (g.idx ? "" : `<path d="${path((pt, i) => spx[i].med)}" fill="none" stroke="var(--text-2)" stroke-width="1" stroke-dasharray="3 3"/>`) +
       `<path d="${path((pt) => pt.med)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>` +
+      `<path d="${path((pt) => pt.ma)}" fill="none" stroke="var(--ma)" stroke-width="1.5" stroke-linejoin="round"/>` +
       `<line class="cross" y1="${padT}" y2="${H - padB}" stroke="var(--text-2)" visibility="hidden"/>` +
       `<circle class="dot" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>` +
       `<rect class="hit" x="${padL}" y="0" width="${W - padL - padR}" height="${H}" fill="transparent"/>`;
@@ -488,11 +503,11 @@ function histHover(i) {
       const cur = [...pts].reverse().find((q) => q.med != null);
       const dx = cur && first ? cur.med - first.med : null;
       p.el.querySelector(".c1").textContent = dx == null ? "" : `${dx >= 0 ? "+" : ""}${dx.toFixed(1)}x (${dx >= 0 ? "+" : ""}${((cur.med / first.med - 1) * 100).toFixed(0)}%) over period`;
-      p.el.querySelector(".c2").textContent = pt.med != null ? `IQR ${pt.q1.toFixed(1)}–${pt.q3.toFixed(1)}x` : "";
+      p.el.querySelector(".c2").textContent = (pt.ma != null ? `MA ${pt.ma.toFixed(1)}x · ` : "") + (pt.med != null ? `IQR ${pt.q1.toFixed(1)}–${pt.q3.toFixed(1)}x` : "");
       cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden");
     } else {
       p.el.querySelector(".c1").textContent = new Date(pt.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + ` · n=${pt.n}`;
-      p.el.querySelector(".c2").textContent = pt.med != null ? `IQR ${pt.q1.toFixed(1)}–${pt.q3.toFixed(1)}x` : "";
+      p.el.querySelector(".c2").textContent = (pt.ma != null ? `MA ${pt.ma.toFixed(1)}x · ` : "") + (pt.med != null ? `IQR ${pt.q1.toFixed(1)}–${pt.q3.toFixed(1)}x` : "");
       cross.setAttribute("x1", p.x(k)); cross.setAttribute("x2", p.x(k)); cross.setAttribute("visibility", "visible");
       if (pt.med != null) { dot.setAttribute("cx", p.x(k)); dot.setAttribute("cy", p.y(pt.med)); dot.setAttribute("visibility", "visible"); }
       else dot.setAttribute("visibility", "hidden");
