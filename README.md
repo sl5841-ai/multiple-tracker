@@ -30,7 +30,7 @@ Weekly LTM P/E, EV/EBITDA and EV/Revenue by sector (median + 25th–75th band, w
 The **As of** picker in the header re-dates the whole page (sector tables, range chart, company table, history window, CSV export). Links are bookmarkable: `http://localhost:3000/?asof=2023-06-15`.
 
 - **Saved snapshots** — every refresh archives the full dataset (incl. NTM) to `public/data/snapshots/YYYY-MM-DD.json`; picking one of those dates reproduces it exactly.
-- **Any other past date** (back to ~Sep 2021) — rebuilt from the weekly SEC-filings history using the last week on or before that date: LTM P/E, LTM EV/EBITDA, LTM EV/Revenue, market cap and EV. NTM shows NM (no free historical consensus).
+- **Any other past date** (back to ~Sep 2021) — rebuilt from the weekly SEC-filings history using the last week on or before that date: LTM P/E, LTM EV/EBITDA, LTM EV/Revenue, market cap and EV. NTM columns are hidden in this view (no free historical consensus).
 
 ## Valuation vs. history
 
@@ -54,6 +54,6 @@ A rule-based card that names two sectors, each with the reasons for and against:
 
 - **Top-ranked:** the sector furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue (it must read "Below history").
 - **Bottom-ranked:** the sector furthest above its own 5-year median (it must read "Above history").
-- **Reasons shown:** distance from its own history, P/E versus the S&P 500, trend (multiples versus their 200-day average) and expected EPS growth (NTM consensus versus trailing EPS). Only the first decides the ranking; the rest are tagged as supporting it or pointing the other way.
+- **Reasons shown:** distance from its own history, P/E versus the S&P 500 and trend (multiples versus their 200-day average). Only the first decides the ranking; the rest are tagged as supporting it or pointing the other way.
 - **Headlines:** recent Yahoo Finance headlines for each sector's SPDR ETF, pulled with each data refresh into `latest.json`. Not shown for past dates.
 - **Track record:** in a backtest over September 2022–2026 neither ranking predicted returns. The top-ranked sector trailed the S&P 500 at every horizon tested, and the bottom-ranked sector went on to beat it over 26 and 52 weeks. The card states this. It is a mechanical screen, not investment advice.

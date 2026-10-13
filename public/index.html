@@ -137,8 +137,7 @@
     <div class="note">
       <b>How they are chosen:</b> the top-ranked sector is the one furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue; the bottom-ranked sector is the one furthest above.
       Each must be more than 5% away from its median on at least two of the three multiples.
-      Trend and expected earnings growth are context only and do not change the ranking. Expected EPS growth compares analysts' consensus (usually adjusted) with trailing reported EPS,
-      so the level is overstated; compare it across sectors rather than reading it as a forecast. Headlines come from Yahoo Finance for the sector's SPDR ETF, as of the last data pull, and are not shown for past dates.
+      Trend is context only and does not change the ranking. Headlines come from Yahoo Finance for the sector's SPDR ETF, as of the last data pull, and are not shown for past dates.
       <br><b>Track record:</b> in a backtest of these rules from September 2022 to 2026 (run October 13, 2026, using sector ETFs), neither ranking predicted returns.
       The top-ranked sector trailed the S&amp;P 500 on average over the following 13, 26 and 52 weeks (by 1.6%, 5.2% and 9.3%).
       The bottom-ranked sector did the opposite of what the ranking implies: it matched the S&amp;P 500 over 13 weeks, beat it by 2.7% over 26 weeks and 2.6% over 52, and beat the average sector on 70% of test dates over 26 weeks.
@@ -245,6 +244,8 @@ const METRICS = [
   { key: "evRevNtm", label: "EV/Revenue NTM", cap: "capRev" },
 ];
 const $ = (id) => document.getElementById(id);
+// Metrics with data in the current view. NTM has none for past dates (no historical consensus), so it is hidden there.
+const shownMetrics = () => METRICS.filter((m) => !m.key.endsWith("Ntm") || state.companies.some((c) => c[m.key] != null));
 const state = { companies: [], sector: "", search: "", sort: { key: "marketCap", dir: -1 }, chartMetric: "peNtm" };
 
 // ---------- stats ----------
@@ -275,12 +276,12 @@ function renderSectorTable() {
   const rows = secs.map((s) => ({ name: s, list: state.companies.filter((c) => c.sector === s) }));
   rows.push({ name: "S&P 500", list: state.companies, total: true });
   let h = '<thead><tr class="grp"><th></th><th></th>' +
-    METRICS.map((m) => `<th colspan="3" class="gs">${m.label}</th>`).join("") + "</tr><tr><th>Sector</th><th>#</th>" +
-    METRICS.map(() => '<th class="gs">25th</th><th>Median</th><th>75th</th>').join("") + "</tr></thead><tbody>";
+    shownMetrics().map((m) => `<th colspan="3" class="gs">${m.label}</th>`).join("") + "</tr><tr><th>Sector</th><th>#</th>" +
+    shownMetrics().map(() => '<th class="gs">25th</th><th>Median</th><th>75th</th>').join("") + "</tr></thead><tbody>";
   for (const r of rows) {
     const cls = [r.total ? "total" : "", state.sector === r.name ? "sel" : ""].join(" ");
     h += `<tr class="${cls}" data-sector="${r.total ? "" : esc(r.name)}"><td>${esc(r.name)}</td><td>${r.list.length}</td>`;
-    for (const m of METRICS) {
+    for (const m of shownMetrics()) {
       const s = stats(r.list, m), t = `title="n = ${s.n} with meaningful ${m.label}"`;
       h += `<td class="gs" ${t}>${fx(s.q1)}</td><td class="med" ${t}>${fx(s.med)}</td><td ${t}>${fx(s.q3)}</td>`;
     }
@@ -346,13 +347,13 @@ function renderChart() {
 }
 
 // ---------- company table ----------
-const COLS = [
+const cols = () => [
   { key: "ticker", label: "Ticker", l: true },
   { key: "name", label: "Company", l: true },
   { key: "sector", label: "Sector", l: true },
   { key: "marketCap", label: "Mkt Cap", f: fmtBn },
   { key: "ev", label: "EV", f: fmtBn },
-  ...METRICS.map((m) => ({ key: m.key, label: m.label, f: fx, m })),
+  ...shownMetrics().map((m) => ({ key: m.key, label: m.label, f: fx, m })),
 ];
 function filtered() {
   const q = state.search.trim().toLowerCase();
@@ -374,10 +375,10 @@ function renderCoTable() {
     const sl = state.companies.filter((c) => c.sector === s);
     medians[s] = Object.fromEntries(METRICS.map((m) => [m.key, stats(sl, m).med]));
   }
-  let h = "<thead><tr>" + COLS.map((c) =>
+  let h = "<thead><tr>" + cols().map((c) =>
     `<th class="sort ${c.l ? "l" : ""}" data-k="${c.key}">${c.label}${key === c.key ? (dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr></thead><tbody>";
   for (const c of list) {
-    h += "<tr>" + COLS.map((col) => {
+    h += "<tr>" + cols().map((col) => {
       if (!col.f) return `<td class="l"${col.key === "name" ? ` title="${esc(c.subIndustry || "")}"` : ""}>${esc(c[col.key] ?? "")}</td>`;
       const v = c[col.key];
       // values excluded from sector stats (negative or above cap) are dimmed
@@ -395,13 +396,14 @@ function renderCoTable() {
   $("coTable").querySelectorAll("th.sort").forEach((th) =>
     th.addEventListener("click", () => {
       const k = th.dataset.k;
-      state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (COLS.find((c) => c.key === k).l ? 1 : -1) };
+      state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (cols().find((c) => c.key === k).l ? 1 : -1) };
       renderCoTable();
     }));
 }
 
 function exportCsv() {
-  const cols = ["ticker", "name", "sector", "subIndustry", "price", "marketCap", "ev", "ltmEps", "ntmEps", "ltmEbitda", "ntmEbitda", "ltmRevenue", "ntmRevenue", ...METRICS.map((m) => m.key)];
+  const cols = ["ticker", "name", "sector", "subIndustry", "price", "marketCap", "ev", "ltmEps", "ntmEps", "ltmEbitda", "ntmEbitda", "ltmRevenue", "ntmRevenue", ...shownMetrics().map((m) => m.key)]
+    .filter((k) => !k.startsWith("ntm") || state.companies.some((c) => c[k] != null));
   const lines = [cols.join(",")].concat(filtered().map((c) => cols.map((k) => {
     const v = c[k]; return v == null ? "" : typeof v === "string" ? `"${v.replace(/"/g, '""')}"` : v;
   }).join(",")));
@@ -613,20 +615,14 @@ function renderValuation() {
 
 // ---------- sector idea (rule-based) ----------
 // Rule: the sector furthest below its own 5-year median across the three LTM multiples, provided it reads "Below history".
-// Trend (multiples vs their 200-day average) and expected EPS growth (NTM vs LTM consensus) are shown as supporting or
-// cautionary context; they do not change the ranking.
+// Trend (multiples vs their 200-day average) is shown as supporting or cautionary context; it does not change the ranking.
 const sgn = (v, d = 0) => (Number(v.toFixed(d)) === 0 ? "0%" : (v > 0 ? "+" : "") + v.toFixed(d) + "%");
 function renderPick() {
   if (!hist.data?.dates?.length || !state.companies.length) return;
   const { list, week } = valuationRows("5y");
-  const growthOf = (cos) => {
-    const g = cos.filter((c) => c.ltmEps > 0 && c.ntmEps > 0).map((c) => (c.ntmEps / c.ltmEps - 1) * 100).sort((a, b) => a - b);
-    return g.length >= 5 ? pct(g, 0.5) : null;
-  };
   for (const r of list) {
     const t = Object.values(r.m).filter((x) => x.ma != null).map((x) => (x.cur / x.ma - 1) * 100);
     r.trend = t.length ? t.reduce((a, b) => a + b, 0) / t.length : null;
-    r.growth = growthOf(r.idx ? state.companies : state.companies.filter((c) => c.sector === r.name));
   }
   const spx = list.find((r) => r.idx), secs = list.filter((r) => !r.idx && r.avg != null);
   const top = secs.find((r) => r.read[1] === "lo");
@@ -656,10 +652,6 @@ function renderPick() {
         : (up ? "so valuations are still rising; in testing, sectors in this position often kept outperforming." : "so valuations have already started to come down.");
       why.push([tag(up === low), `<b>Trend.</b> Multiples sit ${amt}% ${up ? "above" : "below"} their 200-day average, ${txt}`]);
     }
-    if (r.growth != null && spx?.growth != null) {
-      const faster = r.growth >= spx.growth;
-      why.push([tag(faster === low), `<b>Expected earnings.</b> Analysts' consensus implies median EPS growth of ${sgn(r.growth)} over the next 12 months, against ${sgn(spx.growth)} for the S&amp;P 500 median${!low && faster ? ", which may justify part of the premium" : ""}.`]);
-    }
     if (r.name === "Financials") why.push([against,
       "<b>Coverage.</b> EV/EBITDA and EV/Revenue cover only the sector's non-bank, non-insurer companies, so only P/E reflects the whole sector."]);
     if (r.name === "Real Estate") why.push([against,
@@ -675,13 +667,13 @@ function renderPick() {
   let h = `<div class="picks">${block(top, true)}${block(bottom, false)}</div>`;
   const f = (v, d = 0) => (v == null ? '<span class="nm">–</span>' : sgn(v, d));
   h += `<h3>All sectors, ranked by distance below their own history</h3><div class="table-wrap"><table><thead><tr><th>#</th><th class="l">Sector</th><th class="l">Reading</th>
-    <th>Avg vs 5Y median</th><th>vs 200-day avg</th><th>Expected EPS growth</th></tr></thead><tbody>` +
+    <th>Avg vs 5Y median</th><th>vs 200-day avg</th></tr></thead><tbody>` +
     secs.map((r, k) => `<tr><td>${k + 1}</td><td class="l">${esc(r.name)}</td><td class="l"><span class="read ${r.read[1]}">${r.read[0]}</span></td>
-      <td>${f(r.avg)}</td><td>${f(r.trend, 1)}</td><td>${f(r.growth)}</td></tr>`).join("") + "</tbody></table></div>";
+      <td>${f(r.avg)}</td><td>${f(r.trend, 1)}</td></tr>`).join("") + "</tbody></table></div>";
   $("pickBody").innerHTML = h;
 }
 
-function renderAll() { renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); }
+function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); }
 
 // ---------- data loading ----------
 const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
@@ -743,7 +735,7 @@ async function load() {
   banner.hidden = d.source === "live";
   if (d.source === "history")
     banner.innerHTML = `<b>Historical view — week ending ${fmtDay(d.effectiveDate)}.</b> LTM multiples rebuilt from SEC filings available on that date
-      (prices as of that week); NTM columns show NM because past consensus estimates aren't available. Pick a saved snapshot for a full view incl. NTM.`;
+      (prices as of that week); NTM multiples are hidden because past consensus estimates aren't available. Pick a saved snapshot for a full view incl. NTM.`;
   else if (d.source === "snapshot")
     banner.innerHTML = `<b>Saved snapshot from ${new Date(d.updatedAt).toLocaleString()}</b> — full data incl. NTM, exactly as pulled that day.`;
   $("asOf").textContent = !d.updatedAt
@@ -781,7 +773,11 @@ async function pollStatus() {
   }
 }
 
-$("metricSeg").innerHTML = METRICS.map((m) => `<button data-k="${m.key}" aria-pressed="${m.key === state.chartMetric}">${m.label}</button>`).join("");
+function renderMetricSeg() {
+  const ms = shownMetrics();
+  if (!ms.some((m) => m.key === state.chartMetric)) state.chartMetric = state.chartMetric.replace("Ntm", "Ltm");
+  $("metricSeg").innerHTML = ms.map((m) => `<button data-k="${m.key}" aria-pressed="${m.key === state.chartMetric}">${m.label}</button>`).join("");
+}
 $("metricSeg").addEventListener("click", (e) => {
   const k = e.target.dataset.k; if (!k) return;
   state.chartMetric = k;
