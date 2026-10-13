@@ -109,6 +109,8 @@
   .news a { color: var(--accent); text-decoration: none; }
   .news a:hover { text-decoration: underline; }
   h3 { font-size: 13px; margin: 16px 0 6px; color: var(--text-2); }
+  .bar { display: inline-block; width: 120px; height: 8px; vertical-align: middle; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 2px; }
   .pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); }
   @media (max-width: 640px) { input[type="search"] { width: 100%; } }
 </style>
@@ -130,6 +132,21 @@
     </div>
   </header>
   <div class="banner" id="asOfBanner" hidden></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="allocTitle">Illustrative sector allocation</h2>
+      <label class="asof">Amount to allocate $ <input type="number" id="allocAmt" value="10000" min="0" step="100" style="width:130px" /></label>
+    </div>
+    <div id="allocBody"><span class="sub">Loading…</span></div>
+    <div class="note">
+      <b>How it is calculated:</b> each sector starts at its share of total S&amp;P 500 market value (the "market weight").
+      Sectors reading <b>Below history</b> in the sector ideas section get 1.5 times that weight, sectors reading <b>Above history</b> get 0.5 times, and the rest are unchanged; the weights are then rescaled to add up to 100%.
+      <br><b>Track record:</b> in a backtest from September 2022 to 2026 (run October 13, 2026, using sector ETFs), this tilted allocation did slightly worse than simply holding the market weights:
+      it trailed by 0.1% over the following 13 weeks, 0.7% over 26 and 0.8% over 52, and came out ahead on 44%, 36% and 23% of test dates.
+      <br>This is an arithmetic illustration of the screen's rule, not investment advice. It knows nothing about your goals, time horizon, taxes or existing holdings, and the amount you enter is not stored or sent anywhere.
+    </div>
+  </section>
 
   <section class="card">
     <div class="card-head"><h2 id="pickTitle">Sector ideas from this screen</h2></div>
@@ -554,7 +571,7 @@ function ensureHistory() {
 async function loadHistory() {
   const h = await ensureHistory();
   $("histStatus").textContent = h?.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
-  renderHistory(); renderValuation(); renderPick();
+  renderHistory(); renderValuation(); renderPick(); renderAlloc();
 }
 
 // ---------- valuation vs history ----------
@@ -673,7 +690,43 @@ function renderPick() {
   $("pickBody").innerHTML = h;
 }
 
-function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); }
+// ---------- illustrative allocation ----------
+// Market-cap sector weights, tilted by the sector ideas reading: Below history x1.5, Above history x0.5.
+const ALLOC_TILT = { lo: 1.5, hi: 0.5 };
+const fmtUsd = (v) => "$" + Math.round(v).toLocaleString();
+function renderAlloc() {
+  if (!hist.data?.dates?.length || !state.companies.length) return;
+  const amt = Math.max(0, Number($("allocAmt").value) || 0);
+  const cikOf = new Map((src.latest?.companies ?? []).map((c) => [c.ticker, c.cik]));
+  const { list, week } = valuationRows("5y");
+  $("allocTitle").textContent = `Illustrative sector allocation — week ending ${week ? fmtDay(week) : "–"}`;
+  const rows = list.filter((r) => !r.idx).map((r) => {
+    // companies with two listed share classes (GOOGL/GOOG, FOXA/FOX, NWSA/NWS) each report the full company value: count once
+    const byCo = new Map();
+    for (const c of state.companies) {
+      if (c.sector !== r.name || !(c.marketCap > 0)) continue;
+      const id = cikOf.get(c.ticker) ?? c.ticker;
+      byCo.set(id, Math.max(byCo.get(id) ?? 0, c.marketCap));
+    }
+    const cap = [...byCo.values()].reduce((x, y) => x + y, 0);
+    return { name: r.name, read: r.read, cap, tilt: ALLOC_TILT[r.read[1]] ?? 1 };
+  }).filter((r) => r.cap > 0);
+  const capSum = rows.reduce((a, r) => a + r.cap, 0), tiltSum = rows.reduce((a, r) => a + r.cap * r.tilt, 0);
+  if (!capSum) { $("allocBody").innerHTML = '<span class="sub">No market value data for this date.</span>'; return; }
+  for (const r of rows) { r.base = r.cap / capSum; r.w = (r.cap * r.tilt) / tiltSum; r.usd = Math.round(amt * r.w); }
+  rows.sort((a, b) => b.w - a.w);
+  if (rows.length) rows[0].usd += Math.round(amt) - rows.reduce((a, r) => a + r.usd, 0); // rounding goes to the largest line
+  const p1 = (v) => (v * 100).toFixed(1) + "%";
+  const maxW = Math.max(...rows.map((r) => r.w));
+  $("allocBody").innerHTML = `<div class="table-wrap"><table><thead><tr><th>Sector</th><th class="l">Reading</th><th>Market weight</th><th>Tilt</th>
+    <th>Allocation</th><th class="l"></th><th>Amount</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="l"><span class="read ${r.read[1]}">${r.read[0]}</span></td><td>${p1(r.base)}</td>
+      <td>${r.tilt === 1 ? '<span class="nm">–</span>' : "×" + r.tilt}</td><td class="med">${p1(r.w)}</td>
+      <td class="l"><span class="bar"><i style="width:${((r.w / maxW) * 100).toFixed(0)}%"></i></span></td><td class="med">${fmtUsd(r.usd)}</td></tr>`).join("") +
+    `<tr class="total"><td>Total</td><td></td><td>100.0%</td><td></td><td>100.0%</td><td></td><td>${fmtUsd(amt)}</td></tr></tbody></table></div>`;
+}
+
+function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); renderAlloc(); }
 
 // ---------- data loading ----------
 const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
@@ -806,6 +859,7 @@ $("search").addEventListener("input", (e) => { state.search = e.target.value; re
 $("sectorFilter").addEventListener("change", (e) => { state.sector = e.target.value; renderAll(); });
 ["capPe", "capEv", "capRev"].forEach((id) => $(id).addEventListener("input", renderAll));
 $("csvBtn").addEventListener("click", exportCsv);
+$("allocAmt").addEventListener("input", renderAlloc);
 $("asOfDate").addEventListener("change", (e) => setAsOf(e.target.value));
 $("snapSel").addEventListener("change", (e) => e.target.value && setAsOf(e.target.value));
 $("latestBtn").addEventListener("click", () => setAsOf(""));

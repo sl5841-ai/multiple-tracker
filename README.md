@@ -57,3 +57,12 @@ A rule-based card that names two sectors, each with the reasons for and against:
 - **Reasons shown:** distance from its own history, P/E versus the S&P 500 and trend (multiples versus their 200-day average). Only the first decides the ranking; the rest are tagged as supporting it or pointing the other way.
 - **Headlines:** recent Yahoo Finance headlines for each sector's SPDR ETF, pulled with each data refresh into `latest.json`. Not shown for past dates.
 - **Track record:** in a backtest over September 2022–2026 neither ranking predicted returns. The top-ranked sector trailed the S&P 500 at every horizon tested, and the bottom-ranked sector went on to beat it over 26 and 52 weeks. The card states this. It is a mechanical screen, not investment advice.
+
+## Illustrative sector allocation
+
+The first section on the page. Enter a dollar amount and it splits it across the 11 sectors by a fixed rule:
+
+- **Start** from each sector's share of total S&P 500 market value (companies with two listed share classes are counted once).
+- **Tilt** by the sector ideas reading: 1.5x for "Below history", 0.5x for "Above history", unchanged otherwise; then rescale to 100%.
+- **Track record:** in a backtest over September 2022–2026 the tilted allocation trailed the untilted market weights by 0.1%, 0.7% and 0.8% over 13, 26 and 52 weeks. The section states this.
+- It is an arithmetic illustration, not investment advice. The amount entered stays in the browser.
