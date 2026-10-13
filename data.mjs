@@ -119,6 +119,28 @@ async function withRetry(fn, tries = 3) {
   }
 }
 
+// ---------- Sector news ----------
+// Recent headlines per sector, looked up through each sector's SPDR ETF ticker (Yahoo has no sector news feed).
+const SECTOR_ETF = { "Communication Services": "XLC", "Consumer Discretionary": "XLY", "Consumer Staples": "XLP", Energy: "XLE",
+  Financials: "XLF", "Health Care": "XLV", Industrials: "XLI", "Information Technology": "XLK", Materials: "XLB",
+  "Real Estate": "XLRE", Utilities: "XLU" };
+
+async function fetchSectorNews() {
+  const news = {};
+  for (const [sector, etf] of Object.entries(SECTOR_ETF)) {
+    try {
+      const r = await withRetry(() => yf.search(etf, { newsCount: 6, quotesCount: 0 }, { validateResult: false }));
+      news[sector] = (r.news ?? []).map((n) => ({
+        title: String(n.title ?? ""), publisher: String(n.publisher ?? ""), link: String(n.link ?? ""),
+        time: n.providerPublishTime ? new Date(n.providerPublishTime).toISOString() : null,
+      })).filter((n) => n.title && n.link.startsWith("https://"));
+    } catch {
+      news[sector] = []; // headlines are optional; never fail the snapshot over them
+    }
+  }
+  return news;
+}
+
 // ---------- Stored files ----------
 const readJson = async (file, fallback) => {
   try {
@@ -158,7 +180,7 @@ export async function buildSnapshot(job = { done: 0, total: 0, errors: [] }) {
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   // a mostly-failed pull (e.g. the data source blocking this machine) must not overwrite good data
   if (job.errors.length > list.length / 2) throw new Error(`Snapshot pull failed for ${job.errors.length}/${list.length} tickers`);
-  const store = { updatedAt: new Date().toISOString(), companies: results };
+  const store = { updatedAt: new Date().toISOString(), companies: results, news: await fetchSectorNews() };
   await fs.mkdir(SNAP_DIR, { recursive: true });
   await fs.writeFile(LATEST_FILE, JSON.stringify(store));
   // archive a full snapshot (incl. NTM) per day so any refreshed date can be recalled exactly

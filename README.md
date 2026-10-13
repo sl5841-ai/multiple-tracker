@@ -47,3 +47,13 @@ The page reads plain JSON files under `public/data/`, so `public/` can be hosted
 - **Update the hosted data:** run `npm run build:data` (add `-- --history` to force a history rebuild), then commit and push `public/data/`. Vercel redeploys on every push to `main`.
 - **What differs from running locally:** there is no Refresh button on the hosted site, and it only shows the data that was last pushed. Past dates are rebuilt in the browser from `history.json`.
 - `server.mjs` (local, with Refresh) and `build-data.mjs` (static build) share the same pipeline in `data.mjs`.
+
+## Sector ideas from this screen
+
+A rule-based card that names two sectors, each with the reasons for and against:
+
+- **Top-ranked:** the sector furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue (it must read "Below history").
+- **Bottom-ranked:** the sector furthest above its own 5-year median (it must read "Above history").
+- **Reasons shown:** distance from its own history, P/E versus the S&P 500, trend (multiples versus their 200-day average) and expected EPS growth (NTM consensus versus trailing EPS). Only the first decides the ranking; the rest are tagged as supporting it or pointing the other way.
+- **Headlines:** recent Yahoo Finance headlines for each sector's SPDR ETF, pulled with each data refresh into `latest.json`. Not shown for past dates.
+- **Track record:** in a backtest over September 2022–2026 neither ranking predicted returns. The top-ranked sector trailed the S&P 500 at every horizon tested, and the bottom-ranked sector went on to beat it over 26 and 52 weeks. The card states this. It is a mechanical screen, not investment advice.

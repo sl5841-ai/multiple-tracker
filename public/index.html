@@ -99,6 +99,16 @@
   .track b { position: absolute; top: 1px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
   .read { font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--text); white-space: nowrap; }
   .read.lo, .read.hi { border-color: var(--accent); background: var(--sel); }
+  .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px 28px; }
+  .pick > h3:first-child { margin-top: 0; }
+  .pick-name { font-size: 20px; font-weight: 600; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .why, .news { list-style: none; margin: 0 0 6px; padding: 0; max-width: 900px; }
+  .why li { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; }
+  .tag { flex: none; width: 66px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--text-2); }
+  .news li { padding: 4px 0; }
+  .news a { color: var(--accent); text-decoration: none; }
+  .news a:hover { text-decoration: underline; }
+  h3 { font-size: 13px; margin: 16px 0 6px; color: var(--text-2); }
   .pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); }
   @media (max-width: 640px) { input[type="search"] { width: 100%; } }
 </style>
@@ -120,6 +130,22 @@
     </div>
   </header>
   <div class="banner" id="asOfBanner" hidden></div>
+
+  <section class="card">
+    <div class="card-head"><h2 id="pickTitle">Sector ideas from this screen</h2></div>
+    <div id="pickBody"><span class="sub">Loading…</span></div>
+    <div class="note">
+      <b>How they are chosen:</b> the top-ranked sector is the one furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue; the bottom-ranked sector is the one furthest above.
+      Each must be more than 5% away from its median on at least two of the three multiples.
+      Trend and expected earnings growth are context only and do not change the ranking. Expected EPS growth compares analysts' consensus (usually adjusted) with trailing reported EPS,
+      so the level is overstated; compare it across sectors rather than reading it as a forecast. Headlines come from Yahoo Finance for the sector's SPDR ETF, as of the last data pull, and are not shown for past dates.
+      <br><b>Track record:</b> in a backtest of these rules from September 2022 to 2026 (run October 13, 2026, using sector ETFs), neither ranking predicted returns.
+      The top-ranked sector trailed the S&amp;P 500 on average over the following 13, 26 and 52 weeks (by 1.6%, 5.2% and 9.3%).
+      The bottom-ranked sector did the opposite of what the ranking implies: it matched the S&amp;P 500 over 13 weeks, beat it by 2.7% over 26 weeks and 2.6% over 52, and beat the average sector on 70% of test dates over 26 weeks.
+      The test covers roughly four years and one market regime, in which expensive sectors kept outperforming.
+      <br>This is the output of a mechanical screen for study purposes, not investment advice, and it takes no account of anyone's circumstances.
+    </div>
+  </section>
 
   <section class="card">
     <div class="card-head">
@@ -526,20 +552,20 @@ function ensureHistory() {
 async function loadHistory() {
   const h = await ensureHistory();
   $("histStatus").textContent = h?.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
-  renderHistory(); renderValuation();
+  renderHistory(); renderValuation(); renderPick();
 }
 
 // ---------- valuation vs history ----------
 const VAL_PERIODS = PERIODS.filter((p) => p.years);
 const val = { period: "5y" };
-function renderValuation() {
-  if (!hist.data?.dates?.length || !state.companies.length) return;
-  const TH = 5; // % away from median that counts as above/below
-  const p = VAL_PERIODS.find((x) => x.key === val.period);
+const VAL_TH = 5; // % away from median that counts as above/below
+
+// Each sector's current LTM median multiples vs its own median over the lookback window, plus a reading.
+function valuationRows(periodKey) {
   const rows = new Map();
   let week = "";
   for (const m of HIST_METRICS) {
-    for (const g of histStats(m.key, val.period)) {
+    for (const g of histStats(m.key, periodKey)) {
       week = g.pts.at(-1)?.date ?? week;
       const ser = g.pts.map((pt) => pt.med).filter((v) => v != null);
       const r = rows.get(g.name) ?? { name: g.name, idx: g.idx, m: {} };
@@ -547,19 +573,26 @@ function renderValuation() {
       // needs a value in the latest week and enough history to make a median meaningful
       if (g.pts.at(-1)?.med == null || ser.length < 12) continue;
       const sorted = [...ser].sort((a, b) => a - b), cur = ser.at(-1), med = pct(sorted, 0.5);
-      r.m[m.key] = { cur, med, diff: (cur / med - 1) * 100, lo: sorted[0], hi: sorted.at(-1),
+      r.m[m.key] = { cur, med, diff: (cur / med - 1) * 100, lo: sorted[0], hi: sorted.at(-1), ma: g.pts.at(-1).ma,
         rank: (sorted.filter((v) => v <= cur).length / sorted.length) * 100 };
     }
   }
-  $("valTitle").textContent = `Valuation vs. history — LTM multiples, week ending ${week ? fmtDay(week) : "–"}, vs ${p.years}-year median`;
   const list = [...rows.values()];
   for (const r of list) {
     const ds = Object.values(r.m).map((x) => x.diff);
-    const below = ds.filter((d) => d <= -TH).length, above = ds.filter((d) => d >= TH).length;
+    const below = ds.filter((d) => d <= -VAL_TH).length, above = ds.filter((d) => d >= VAL_TH).length;
     r.avg = ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null;
     r.read = !ds.length ? ["–", ""] : below && above ? ["Mixed", ""] : below >= 2 ? ["Below history", "lo"] : above >= 2 ? ["Above history", "hi"] : ["In line", ""];
   }
   list.sort((a, b) => (a.idx ? 1 : b.idx ? -1 : (a.avg ?? 1e9) - (b.avg ?? 1e9)));
+  return { list, week };
+}
+
+function renderValuation() {
+  if (!hist.data?.dates?.length || !state.companies.length) return;
+  const p = VAL_PERIODS.find((x) => x.key === val.period);
+  const { list, week } = valuationRows(val.period);
+  $("valTitle").textContent = `Valuation vs. history — LTM multiples, week ending ${week ? fmtDay(week) : "–"}, vs ${p.years}-year median`;
   const pos = (x, v) => (x.hi > x.lo ? ((v - x.lo) / (x.hi - x.lo)) * 100 : 50);
   let h = '<thead><tr class="grp"><th></th><th></th>' + HIST_METRICS.map((m) => `<th colspan="4" class="gs">${m.label}</th>`).join("") +
     '</tr><tr><th>Sector</th><th class="l">Reading</th>' +
@@ -578,7 +611,77 @@ function renderValuation() {
   $("valTable").innerHTML = h + "</tbody>";
 }
 
-function renderAll() { renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); }
+// ---------- sector idea (rule-based) ----------
+// Rule: the sector furthest below its own 5-year median across the three LTM multiples, provided it reads "Below history".
+// Trend (multiples vs their 200-day average) and expected EPS growth (NTM vs LTM consensus) are shown as supporting or
+// cautionary context; they do not change the ranking.
+const sgn = (v, d = 0) => (Number(v.toFixed(d)) === 0 ? "0%" : (v > 0 ? "+" : "") + v.toFixed(d) + "%");
+function renderPick() {
+  if (!hist.data?.dates?.length || !state.companies.length) return;
+  const { list, week } = valuationRows("5y");
+  const growthOf = (cos) => {
+    const g = cos.filter((c) => c.ltmEps > 0 && c.ntmEps > 0).map((c) => (c.ntmEps / c.ltmEps - 1) * 100).sort((a, b) => a - b);
+    return g.length >= 5 ? pct(g, 0.5) : null;
+  };
+  for (const r of list) {
+    const t = Object.values(r.m).filter((x) => x.ma != null).map((x) => (x.cur / x.ma - 1) * 100);
+    r.trend = t.length ? t.reduce((a, b) => a + b, 0) / t.length : null;
+    r.growth = growthOf(r.idx ? state.companies : state.companies.filter((c) => c.sector === r.name));
+  }
+  const spx = list.find((r) => r.idx), secs = list.filter((r) => !r.idx && r.avg != null);
+  const top = secs.find((r) => r.read[1] === "lo");
+  const bottom = [...secs].reverse().find((r) => r.read[1] === "hi");
+  $("pickTitle").textContent = `Sector ideas from this screen — week ending ${week ? fmtDay(week) : "–"}`;
+  const label = (k) => HIST_METRICS.find((m) => m.key === k).label.replace(" LTM", "");
+
+  // One block per side. low = true: furthest below its own history (top-ranked); false: furthest above (bottom-ranked).
+  // "Supports" backs the ranking; the other tag flags evidence pointing the opposite way.
+  const block = (r, low) => {
+    const head = low ? "Top-ranked: furthest below its own history" : "Bottom-ranked: furthest above its own history";
+    if (!r) return `<div class="pick"><h3>${head}</h3><p class="pick-name">No sector qualifies</p>
+      <p class="sub">No sector currently reads as ${low ? "below" : "above"} its own 5-year history on at least two of the three multiples.</p></div>`;
+    const against = low ? "Caution" : "Counter";
+    const tag = (supports) => (supports ? "Supports" : against);
+    const parts = Object.entries(r.m).map(([k, x]) => `${label(k)} ${x.cur.toFixed(1)}x vs ${x.med.toFixed(1)}x`).join(", ");
+    const why = [["Supports", `<b>${low ? "Below" : "Above"} its own history.</b> Its LTM multiples average ${sgn(r.avg)} against their 5-year medians (${parts}). No other sector is further ${low ? "below" : "above"} its own history.`]];
+    const pe = r.m.pe, spe = spx?.m.pe;
+    if (pe && spe) {
+      const disc = pe.cur < spe.cur;
+      why.push([tag(disc === low), `<b>Versus the market.</b> Median P/E of ${pe.cur.toFixed(1)}x against ${spe.cur.toFixed(1)}x for the S&amp;P 500, a ${Math.abs((pe.cur / spe.cur - 1) * 100).toFixed(0)}% ${disc ? "discount" : "premium"}.`]);
+    }
+    if (r.trend != null) {
+      const up = r.trend >= 0, amt = Math.abs(r.trend).toFixed(1);
+      const txt = low
+        ? (up ? "so the decline in valuation has started to reverse." : "so valuations are still falling and there is no sign of a turn yet.")
+        : (up ? "so valuations are still rising; in testing, sectors in this position often kept outperforming." : "so valuations have already started to come down.");
+      why.push([tag(up === low), `<b>Trend.</b> Multiples sit ${amt}% ${up ? "above" : "below"} their 200-day average, ${txt}`]);
+    }
+    if (r.growth != null && spx?.growth != null) {
+      const faster = r.growth >= spx.growth;
+      why.push([tag(faster === low), `<b>Expected earnings.</b> Analysts' consensus implies median EPS growth of ${sgn(r.growth)} over the next 12 months, against ${sgn(spx.growth)} for the S&amp;P 500 median${!low && faster ? ", which may justify part of the premium" : ""}.`]);
+    }
+    if (r.name === "Financials") why.push([against,
+      "<b>Coverage.</b> EV/EBITDA and EV/Revenue cover only the sector's non-bank, non-insurer companies, so only P/E reflects the whole sector."]);
+    if (r.name === "Real Estate") why.push([against,
+      "<b>Coverage.</b> REITs are normally valued on FFO rather than earnings, so the P/E comparison is distorted."]);
+    let b = `<div class="pick"><h3>${head}</h3><p class="pick-name">${esc(r.name)} <span class="read ${low ? "lo" : "hi"}">${low ? "Top-ranked" : "Bottom-ranked"}</span></p>
+      <ul class="why">${why.map(([t, txt]) => `<li><span class="tag">${t}</span><span>${txt}</span></li>`).join("")}</ul>`;
+    const news = !state.asOf ? (src.latest.news?.[r.name] ?? []).filter((n) => /^https:\/\//.test(n.link)).slice(0, 5) : [];
+    if (news.length)
+      b += `<h3>Recent ${esc(r.name)} headlines</h3><ul class="news">${news.map((n) =>
+        `<li><a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a> <span class="sub">${esc(n.publisher)}${n.time ? " · " + new Date(n.time).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""}</span></li>`).join("")}</ul>`;
+    return b + "</div>";
+  };
+  let h = `<div class="picks">${block(top, true)}${block(bottom, false)}</div>`;
+  const f = (v, d = 0) => (v == null ? '<span class="nm">–</span>' : sgn(v, d));
+  h += `<h3>All sectors, ranked by distance below their own history</h3><div class="table-wrap"><table><thead><tr><th>#</th><th class="l">Sector</th><th class="l">Reading</th>
+    <th>Avg vs 5Y median</th><th>vs 200-day avg</th><th>Expected EPS growth</th></tr></thead><tbody>` +
+    secs.map((r, k) => `<tr><td>${k + 1}</td><td class="l">${esc(r.name)}</td><td class="l"><span class="read ${r.read[1]}">${r.read[0]}</span></td>
+      <td>${f(r.avg)}</td><td>${f(r.trend, 1)}</td><td>${f(r.growth)}</td></tr>`).join("") + "</tbody></table></div>";
+  $("pickBody").innerHTML = h;
+}
+
+function renderAll() { renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); }
 
 // ---------- data loading ----------
 const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
