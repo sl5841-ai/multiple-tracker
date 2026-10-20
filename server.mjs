@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSnapshot, buildHistory, loadStore, loadHistory } from "./data.mjs";
+import { getNews, parseSymbols } from "./api/_news.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
@@ -58,6 +59,12 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(obj));
   };
 
+  // same endpoint as the Vercel function in api/news.js
+  if (url.pathname === "/api/news") {
+    const symbols = parseSymbols(url.searchParams.get("symbols"));
+    if (!symbols.length) return json({ error: "No valid ticker symbols" }, 400);
+    return json({ results: await getNews(symbols) });
+  }
   if (url.pathname === "/api/status") return json({ updatedAt: store.updatedAt, job, histJob, histUpdatedAt: history.updatedAt });
   if (url.pathname === "/api/refresh" && req.method === "POST") {
     refresh();

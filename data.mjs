@@ -1,5 +1,7 @@
 // Data pipeline shared by the local server (server.mjs) and the static build (build-data.mjs).
-// Pulls constituents + GICS sectors from Wikipedia, market data + consensus estimates from Yahoo Finance,
+// Universe: S&P 500 members (GICS sectors from Wikipedia) plus every other US-listed common stock with a market cap
+// of at least $300M (Nasdaq's symbol directory; Yahoo sector mapped to GICS names). History covers the S&P 500 only.
+// Market data + consensus estimates come from Yahoo Finance;
 // computes LTM/NTM multiples, and writes everything as static JSON under public/data/ so the page
 // can be hosted with or without a server.
 import fs from "node:fs/promises";
@@ -15,7 +17,8 @@ const LATEST_FILE = path.join(DATA_DIR, "latest.json");
 const HIST_FILE = path.join(DATA_DIR, "history.json");
 const DATES_FILE = path.join(DATA_DIR, "dates.json");
 const SNAP_DIR = path.join(DATA_DIR, "snapshots");
-const CONCURRENCY = 6;
+const CONCURRENCY = 8;
+const MIN_CAP = 300e6; // market-cap floor for companies outside the S&P 500
 
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
@@ -45,6 +48,40 @@ async function fetchConstituents() {
   return out;
 }
 
+// ---------- Other US-listed common stocks ----------
+// Nasdaq Trader's symbol directory lists every NYSE / Nasdaq / NYSE American security, with ETF and test-issue flags.
+const SYMDIR = "https://www.nasdaqtrader.com/dynamic/SymDir/";
+const NOT_COMMON = /warrant|\bright|\bunits?\b|preferred|\bnotes? due|debenture|%|subordinated|trust preferred|beneficial interest|closed[- ]end|\bfund\b/i;
+const SHELL = /acquisition (corp|co\b|company|inc|ltd|limited|holdings)|blank check|\bspac\b/i;
+
+async function fetchListed() {
+  const out = [];
+  for (const [file, symCol] of [["nasdaqlisted.txt", "Symbol"], ["otherlisted.txt", "ACT Symbol"]]) {
+    const res = await fetch(SYMDIR + file, { headers: { "User-Agent": "Mozilla/5.0 (sp500-multiples app)" } });
+    if (!res.ok) throw new Error(`Nasdaq symbol directory HTTP ${res.status}`);
+    const lines = (await res.text()).trim().split(/\r?\n/);
+    const head = lines[0].split("|");
+    for (const line of lines.slice(1)) {
+      if (line.startsWith("File Creation")) continue;
+      const r = Object.fromEntries(line.split("|").map((v, i) => [head[i], v]));
+      const ticker = r[symCol], name = r["Security Name"] ?? "";
+      if (r.ETF !== "N" || r["Test Issue"] !== "N") continue;
+      if (!/^[A-Z]{1,5}(\.[A-Z])?$/.test(ticker) || NOT_COMMON.test(name) || SHELL.test(name)) continue;
+      out.push({ ticker, yahoo: ticker.replace(/\./g, "-"), name: name.replace(/\s+-\s+.*$|\s+(Class [A-Z] )?(Common Stock|Ordinary Shares|Common Shares).*$/i, "").trim() });
+    }
+  }
+  if (out.length < 2000) throw new Error(`Only parsed ${out.length} listed stocks`);
+  return out;
+}
+
+// Yahoo's sector names -> the matching GICS sector names used for S&P 500 members
+const YAHOO_SECTOR = {
+  Technology: "Information Technology", Healthcare: "Health Care", "Financial Services": "Financials",
+  "Consumer Cyclical": "Consumer Discretionary", "Consumer Defensive": "Consumer Staples", "Basic Materials": "Materials",
+  "Communication Services": "Communication Services", Industrials: "Industrials", Energy: "Energy",
+  "Real Estate": "Real Estate", Utilities: "Utilities",
+};
+
 // ---------- Multiples ----------
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const ratio = (a, b) => (a != null && b != null && b > 0 ? a / b : null); // negative/zero denominator -> NM
@@ -64,7 +101,7 @@ function ntmBlend(fy0, fy1, fy0End) {
 async function fetchCompany(c) {
   const r = await yf.quoteSummary(
     c.yahoo,
-    { modules: ["price", "summaryDetail", "defaultKeyStatistics", "financialData", "earningsTrend"] },
+    { modules: ["price", "summaryDetail", "defaultKeyStatistics", "financialData", "earningsTrend", "assetProfile"] },
     { validateResult: false },
   );
   const price = num(r.price?.regularMarketPrice);
@@ -83,9 +120,12 @@ async function fetchCompany(c) {
   const ntmEbitda =
     ltmEbitda != null && ltmRevenue > 0 && ntmRevenue != null ? ltmEbitda * (ntmRevenue / ltmRevenue) : null;
 
+  const outside = !c.sp500;
   return withDerived({
     ...c,
+    ...(outside ? { sector: YAHOO_SECTOR[r.assetProfile?.sector] ?? null, subIndustry: r.assetProfile?.industry ?? "" } : {}),
     currency: r.price?.currency ?? null,
+    financialCurrency: r.financialData?.financialCurrency ?? null,
     price,
     marketCap,
     ev,
@@ -161,7 +201,10 @@ export async function writeDatesIndex() {
 // ---------- Snapshot (today's multiples) ----------
 // job: optional progress object { done, total, errors } mutated as the pull runs
 export async function buildSnapshot(job = { done: 0, total: 0, errors: [] }) {
-  const list = await withRetry(fetchConstituents);
+  const sp = (await withRetry(fetchConstituents)).map((c) => ({ ...c, sp500: true }));
+  const inSp = new Set(sp.map((c) => c.ticker));
+  const others = (await withRetry(fetchListed)).filter((c) => !inSp.has(c.ticker)).map((c) => ({ ...c, sp500: false }));
+  const list = [...sp, ...others];
   job.total = list.length;
   const results = new Array(list.length);
   let next = 0;
@@ -171,7 +214,8 @@ export async function buildSnapshot(job = { done: 0, total: 0, errors: [] }) {
       try {
         results[i] = await withRetry(() => fetchCompany(list[i]));
       } catch (e) {
-        job.errors.push(`${list[i].ticker}: ${e.message}`);
+        // outside the S&P 500, a failed lookup just drops the company (many thin listings have no Yahoo data)
+        if (list[i].sp500) job.errors.push(`${list[i].ticker}: ${e.message}`);
         results[i] = { ...list[i], error: e.message };
       }
       job.done++;
@@ -179,8 +223,13 @@ export async function buildSnapshot(job = { done: 0, total: 0, errors: [] }) {
   };
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   // a mostly-failed pull (e.g. the data source blocking this machine) must not overwrite good data
-  if (job.errors.length > list.length / 2) throw new Error(`Snapshot pull failed for ${job.errors.length}/${list.length} tickers`);
-  const store = { updatedAt: new Date().toISOString(), companies: results, news: await fetchSectorNews() };
+  if (job.errors.length > sp.length / 2) throw new Error(`Snapshot pull failed for ${job.errors.length}/${sp.length} S&P 500 tickers`);
+  // keep S&P 500 members as-is; other companies need USD financials, a known sector, a market cap >= $300M, and not a shell
+  const keep = results.filter((c) => c.sp500 || (!c.error && c.sector && c.marketCap >= MIN_CAP &&
+    c.financialCurrency === "USD" && c.subIndustry !== "Shell Companies"));
+  const store = { updatedAt: new Date().toISOString(), companies: keep.map(compact), news: await fetchSectorNews(),
+    universe: { minCap: MIN_CAP, sp500: sp.length, others: keep.length - sp.length, othersChecked: others.length,
+      othersLookupFailed: results.filter((c) => !c.sp500 && c.error).length } };
   await fs.mkdir(SNAP_DIR, { recursive: true });
   await fs.writeFile(LATEST_FILE, JSON.stringify(store));
   // archive a full snapshot (incl. NTM) per day so any refreshed date can be recalled exactly
@@ -189,9 +238,17 @@ export async function buildSnapshot(job = { done: 0, total: 0, errors: [] }) {
   return store;
 }
 
+// trim floats to 6 significant digits; the universe is ~8x the S&P 500, so this keeps the JSON files small
+function compact(c) {
+  const o = {};
+  for (const [k, v] of Object.entries(c)) if (v != null && k !== "yahoo") o[k] = typeof v === "number" && !Number.isInteger(v) ? Number(v.toPrecision(6)) : v;
+  return o;
+}
+
 // ---------- History (weekly LTM multiples, ~5y) ----------
+// S&P 500 members only (older stores have no sp500 flag; they were S&P-only)
 export async function buildHistory(store, job = { done: 0, total: 0, errors: [] }) {
-  const list = store.companies.filter((c) => c.cik);
+  const list = store.companies.filter((c) => c.cik && c.sp500 !== false).map((c) => ({ ...c, yahoo: c.yahoo ?? c.ticker.replace(/\./g, "-") }));
   job.total = list.length;
   const grid = weeklyGrid();
   const series = {};

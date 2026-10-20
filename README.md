@@ -52,17 +52,36 @@ The page reads plain JSON files under `public/data/`, so `public/` can be hosted
 
 A rule-based card that names two sectors, each with the reasons for and against:
 
-- **Top-ranked:** the sector furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue (it must read "Below history").
-- **Bottom-ranked:** the sector furthest above its own 5-year median (it must read "Above history").
+- **Cheapest vs. its own history:** the sector furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue (it must read "Below history").
+- **Most expensive vs. its own history:** the sector furthest above its own 5-year median (it must read "Above history").
 - **Reasons shown:** distance from its own history, P/E versus the S&P 500 and trend (multiples versus their 200-day average). Only the first decides the ranking; the rest are tagged as supporting it or pointing the other way.
 - **Headlines:** recent Yahoo Finance headlines for each sector's SPDR ETF, pulled with each data refresh into `latest.json`. Not shown for past dates.
-- **Track record:** in a backtest over September 2022–2026 neither ranking predicted returns. The top-ranked sector trailed the S&P 500 at every horizon tested, and the bottom-ranked sector went on to beat it over 26 and 52 weeks. The card states this. It is a mechanical screen, not investment advice.
+- **Track record:** in a backtest over September 2022–2026 neither ranking predicted returns. The cheapest sector trailed the S&P 500 at every horizon tested, and the most expensive sector went on to beat it over 26 and 52 weeks. The card states this. It is a mechanical screen, not investment advice.
 
-## Illustrative sector allocation
+## Sector allocation
 
-The first section on the page. Enter a dollar amount and it splits it across the 11 sectors by a fixed rule:
+In the News & allocation tab, a chart compares three things for each sector:
 
-- **Start** from each sector's share of total S&P 500 market value (companies with two listed share classes are counted once).
-- **Tilt** by the sector ideas reading: 1.5x for "Below history", 0.5x for "Above history", unchanged otherwise; then rescale to 100%.
-- **Track record:** in a backtest over September 2022–2026 the tilted allocation trailed the untilted market weights by 0.1%, 0.7% and 0.8% over 13, 26 and 52 weeks. The section states this.
-- It is an arithmetic illustration, not investment advice. The amount entered stays in the browser.
+- **Screen's allocation:** each sector's share of S&P 500 market value, tilted 1.5x for "Above history" and 0.5x for "Below history", rescaled to 100%, with dollar amounts for the amount entered. The direction and size were calibrated on the 2022–2026 backtest (multipliers 0–3 tested; best 0x/3x, softened to 0.5x/1.5x).
+- **Market weight:** the untilted S&P 500 share, shown as a tick.
+- **Your holdings:** when holdings with market values are entered, their mix by sector. ETFs, funds and stocks the app does not cover are grouped as "ETFs & other". A button fills the amount with the holdings total.
+- **Track record:** against untilted market weights the tilt returned +0.15%, +0.53% and +0.68% over 13, 26 and 52 weeks (ahead on 60%, 62% and 83% of dates), and multipliers chosen on 2022–2024 also beat market weights on 2025–2026. One regime, about four years; the section states this. It is an arithmetic illustration, not investment advice; holdings and amounts stay in the browser.
+- The same numbers are available as a table under "Show as table".
+
+## News for your holdings
+
+The first section on the page. Add holdings by hand (ticker and current market value) and it shows up to 3 recent headlines per ticker, up to 20 tickers.
+
+- **Headlines:** `/api/news?symbols=AAPL,MSFT` returns them from Yahoo Finance's search endpoint. On Vercel this is the serverless function `api/news.js`; locally `server.mjs` serves the same route. Both use `api/_news.mjs`. Only ticker symbols are sent; market values stay in the browser, and nothing is stored.
+- For covered stocks, each ticker card also shows its sector and that sector's reading from the sector ideas section.
+- **Sentiment:** each headline is tagged Positive, Negative or Neutral by a finance word list in `api/_sentiment.mjs` (with handling for "not" and "despite"), and flagged when it doesn't name the company. Headline wording only; not a forecast.
+- The market values feed the "Your holdings" series in the sector allocation chart.
+
+## Stock universe
+
+A switch in the header chooses **S&P 500** or **All US $300M+** for the sections built on today's data: sector benchmarks, sector ranges and the Companies table (holdings news also recognizes the wider list).
+
+- **S&P 500:** constituents and official GICS sectors from Wikipedia.
+- **All US $300M+:** adds every other NYSE, Nasdaq and NYSE American common stock (including ADRs) with a market cap of at least $300M, from Nasdaq Trader's symbol directory. Sectors come from Yahoo Finance, mapped to the matching GICS names. Shell companies (SPACs) and companies reporting in a non-USD currency are left out. About 2,900 companies in total.
+- **S&P 500 only:** sector charts over time, valuation vs. history, sector ideas, the allocation and past dates, since history is rebuilt from SEC filings for S&P 500 members only.
+- The full data build now takes about 7 minutes (~5,400 Yahoo lookups).
