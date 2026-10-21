@@ -50,6 +50,7 @@ const GENERIC = new Set(["inc", "corp", "corporation", "co", "company", "the", "
 export function mentionsCompany(title, symbol, name) {
   const t = String(title);
   if (new RegExp(`(^|[^A-Za-z])${symbol.replace(/[.-]/g, "[.\-]")}([^A-Za-z]|$)`).test(t)) return true;
-  const lower = t.toLowerCase();
-  return String(name).toLowerCase().split(/[^a-z0-9]+/).some((w) => w.length >= 4 && !GENERIC.has(w) && lower.includes(w));
+  // compare without spaces too, so "ExxonMobil" in a name matches "Exxon Mobil" in a headline and vice versa
+  const lower = t.toLowerCase(), squashed = lower.replace(/[^a-z0-9]/g, "");
+  return String(name).toLowerCase().split(/[^a-z0-9]+/).some((w) => w.length >= 4 && !GENERIC.has(w) && (lower.includes(w) || squashed.includes(w)));
 }

@@ -183,6 +183,30 @@
     .tabs button { text-align: left; padding: 10px 12px; white-space: normal; }
     .tabs::before { content: "Sections"; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 12px 6px; }
   }
+  .earn { background: var(--tile); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: 13px; }
+  .earn b { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 2px; }
+  /* portfolio score */
+  .score-head { font-size: 15px; margin: 0 0 10px; }
+  .score-head b { font-size: 22px; }
+  .score-head .hot { color: var(--hot); } .score-head .cold { color: var(--cold); }
+  .pf-list { width: 100%; font-size: 13px; margin-top: 12px; }
+  /* heatmap + time-lapse */
+  .timelapse { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+  .timelapse input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+  .heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  @media (max-width: 520px) { .heat { grid-template-columns: repeat(2, minmax(0, 1fr)); } .heat .p { font-size: 17px; } }
+  .heat button { text-align: left; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-height: 78px; color: var(--text); }
+  .heat button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .heat .n { font-size: 13px; font-weight: 600; }
+  .heat .p { font-size: 20px; font-weight: 650; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .heat .r { font-size: 11px; color: var(--text-2); }
+  .heat-key::before { width: 14px; height: 10px; border-radius: 2px; }
+  .heat-key.cold::before { background: color-mix(in srgb, var(--cold) 45%, var(--surface)); }
+  .heat-key.hot::before { background: color-mix(in srgb, var(--hot) 45%, var(--surface)); }
+  .detail { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 24px; }
+  .detail h3 { margin: 0 0 6px; color: var(--text); font-size: 14px; }
+  .detail table { font-size: 13px; }
   .pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); }
   @media (max-width: 640px) { input[type="search"] { width: 100%; } }
 </style>
@@ -197,7 +221,6 @@
     </div>
     <div class="row">
       <label class="asof">As of <input type="date" id="asOfDate" /></label>
-      <select id="snapSel" title="Saved full snapshots (include NTM)"><option value="">Saved snapshots…</option></select>
       <button id="latestBtn">Latest</button>
       <div class="progress" id="progWrap" hidden><div id="prog"></div></div>
       <span class="sub" id="progText"></span>
@@ -245,16 +268,30 @@
     <div id="pfRows"></div>
     <div class="row" style="margin-top:6px">
       <button id="pfAdd">+ Add holding</button>
+      <button id="pfClear" title="Remove all holdings from this browser">Clear all</button>
       <button class="primary" id="pfGo">Get news</button>
     </div>
     <p class="sub" id="pfStatus"></p>
     <div id="pfResults"></div>
     <div class="note">
-      Up to 3 recent Yahoo Finance headlines per ticker, up to 20 tickers. Only the ticker symbols are sent to look up news; market values never leave your browser, and nothing is saved.
+      Up to 3 recent Yahoo Finance headlines per ticker, up to 20 tickers, limited to major news that names the company: opinion and commentary pieces
+      (e.g. The Motley Fool, Zacks, 24/7 Wall St., Simply Wall St.), "Should you buy…?"-style questions, listicles and general market wraps are left out, so some holdings show fewer than three.
+      Each card also shows the latest reported quarter's EPS against the analysts' consensus estimate
+      (Yahoo Finance; usually adjusted EPS, so it can differ from reported GAAP EPS) and the next scheduled report date. Within ±2% of the estimate counts as in line; ETFs and funds have no earnings. Only the ticker symbols are sent to look up news; market values never leave your browser, and nothing is saved.
       For covered stocks, the sector and that sector's reading from the sector ideas section are shown alongside.
       <br><b>Positive / Negative / Neutral</b> is scored from each headline's wording with a finance word list (e.g. "beats", "upgrade", "record high" against "misses", "probe", "price target cut"),
       counting "not" and "despite"; hover a tag to see the words it used. It reads the headline only, not the article, so it misses context and sarcasm,
       and it is not a forecast of the stock's move. Headlines that don't name the company are marked "not specifically about" it.
+    </div>
+  </section>
+
+  <section class="card" data-tab="holdings" role="tabpanel" aria-labelledby="tab-holdings">
+    <div class="card-head"><div class="title-row"><h2>Is my portfolio expensive?</h2><span class="scope" title="Compared with the S&amp;P 500 as a whole (value-weighted), using today's LTM multiples.">vs. the S&amp;P 500</span></div></div>
+    <div id="pfScore"><div class="empty">Add your holdings with their market values above to see how expensive your portfolio is.</div></div>
+    <div class="note">
+      Your portfolio's P/E is value-weighted the way index P/Es are: total value of your stocks ÷ the earnings that value buys (each holding's value ÷ its P/E).
+      The S&amp;P 500 figure is calculated the same way from every member's market value. Companies with losses or no meaningful multiple, and ETFs or funds, are left out of the average and listed below.
+      Uses the latest data (LTM); not a forecast or advice.
     </div>
   </section>
 
@@ -280,6 +317,23 @@
       The test uses today's S&amp;P 500 members throughout (survivorship bias) and starts in 2011, when the first readings are available.
       <br>This is an arithmetic illustration of the screen's rule, not investment advice. It knows nothing about your goals, time horizon, taxes or other investments, and the holdings you enter are not stored or sent anywhere.
     </div>
+  </section>
+
+  <section class="card" data-tab="ideas" role="tabpanel" aria-labelledby="tab-ideas">
+    <div class="card-head">
+      <div class="title-row"><h2 id="heatTitle">Sector heatmap</h2><span class="scope sp" title="Each sector's LTM multiples against their own 5-year median, from S&amp;P 500 history.">S&amp;P 500 history</span></div>
+      <div class="legend"><span class="heat-key cold">Cheaper than its 5-yr history</span><span class="heat-key hot">Pricier</span></div>
+    </div>
+    <div class="timelapse">
+      <button id="heatPlay" aria-label="Play time-lapse">▶ Play</button>
+      <input type="range" id="heatSlider" min="0" max="0" value="0" aria-label="Week shown in the heatmap" />
+      <span class="sub" id="heatDate"></span>
+      <button id="heatLatest">Latest</button>
+    </div>
+    <div class="heat" id="heatGrid"></div>
+    <div id="sectorDetail" class="detail" hidden></div>
+    <div class="note">Each tile is the average of the sector's median LTM P/E, EV/EBITDA and EV/Revenue against their own 5-year median, the same reading as the rest of the app.
+      Press Play to watch it change week by week since 2011, or drag the slider. Click a sector for its trend, cheapest and priciest companies, and news.</div>
   </section>
 
   <section class="card" data-tab="ideas" role="tabpanel" aria-labelledby="tab-ideas">
@@ -731,7 +785,7 @@ function ensureHistory() {
 async function loadHistory() {
   const h = await ensureHistory();
   $("histStatus").textContent = h?.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
-  renderHistory(); renderValuation(); renderPick(); renderAlloc(); renderVerdict();
+  renderHistory(); renderValuation(); renderPick(); renderAlloc(); renderVerdict(); renderPfScore(); renderHeat();
 }
 
 // ---------- valuation vs history ----------
@@ -1026,7 +1080,7 @@ function acPick(k) {
   pf.rows[i].t = x.t; input.value = x.t;
   acClose();
   input.closest(".pf-row").querySelector(".v").focus();
-  renderAlloc();
+  pfChanged();
 }
 
 // ---------- news for the user's holdings ----------
@@ -1091,6 +1145,21 @@ function sentSummary(news) {
   for (const n of news) c[n.sentiment in c ? n.sentiment : "neutral"]++;
   return `<p class="sub" style="margin:0 0 6px">Headlines: ${c.positive} positive · ${c.negative} negative · ${c.neutral} neutral</p>`;
 }
+// latest quarter's EPS vs consensus, tagged Beat / Miss / In line (within ±2% counts as in line), plus the next report date
+function earningsBlock(e) {
+  if (!e) return "";
+  const usd = (v) => (v < 0 ? "−$" : "$") + Math.abs(v).toFixed(2);
+  const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  let line = "";
+  if (e.epsActual != null && e.epsEstimate != null) {
+    const p = e.surprisePct ?? ((e.epsActual / e.epsEstimate - 1) * 100);
+    const [cls, icon, word] = p >= 2 ? ["positive", "▲", "Beat"] : p <= -2 ? ["negative", "▼", "Miss"] : ["neutral", "●", "In line"];
+    line = `<span class="sent ${cls}">${icon} ${word}</span> EPS ${usd(e.epsActual)} vs ${usd(e.epsEstimate)} estimate (${p >= 0 ? "+" : ""}${p.toFixed(1)}%)` +
+      (e.quarterEnd ? ` · quarter ended ${fmt(e.quarterEnd)}` : "");
+  }
+  const next = e.nextReport ? `Next report: ${fmt(e.nextReport)}` : "";
+  return `<div class="earn"><b>Latest earnings</b><div>${line || '<span class="nm">No recent EPS estimate</span>'}</div>${next ? `<div class="sub">${next}</div>` : ""}</div>`;
+}
 function renderPortfolioNews(results) {
   const reading = new Map();
   if (hist.data?.dates?.length) for (const r of valuationRows("5y").list) reading.set(r.name, r.read);
@@ -1102,8 +1171,8 @@ function renderPortfolioNews(results) {
     const body = !x.found ? '<p class="sub">Not recognized as a ticker.</p>'
       : x.news.length ? `<ul class="news">${x.news.filter((n) => /^https:\/\//.test(n.link)).map((n) =>
           `<li>${sentTag(n)}<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a> <span class="sub">${esc(n.publisher)}${day(n.time)}${n.about === false ? ` · not specifically about ${esc(x.symbol)}` : ""}</span></li>`).join("")}</ul>`
-      : '<p class="sub">No recent headlines found.</p>';
-    return `<div class="pf-card"><h3>${esc(x.symbol)} <span class="sub">${esc(x.name)}</span></h3><p class="sub" style="margin:0 0 6px">${meta}</p>${sentSummary(x.news)}${body}</div>`;
+      : '<p class="sub">No major company news among the latest stories.</p>';
+    return `<div class="pf-card"><h3>${esc(x.symbol)} <span class="sub">${esc(x.name)}</span></h3><p class="sub" style="margin:0 0 6px">${meta}</p>${x.found ? earningsBlock(x.earnings) : ""}${sentSummary(x.news)}${body}</div>`;
   }).join("") + "</div>";
 }
 
@@ -1142,7 +1211,205 @@ const linkScroll = (from, to) => from.addEventListener("scroll", () => {
   if (to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
 });
 
-function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); renderAlloc(); renderVerdict(); }
+// ---------- #4 holdings remembered in this browser ----------
+const PF_KEY = "iiey-holdings-v1";
+function savePf() {
+  try { localStorage.setItem(PF_KEY, JSON.stringify(pf.rows.filter((r) => r.t || r.v != null))); } catch {}
+}
+function loadPf() {
+  try {
+    const rows = JSON.parse(localStorage.getItem(PF_KEY) ?? "[]");
+    if (Array.isArray(rows)) pf.rows = rows.filter((r) => r && typeof r.t === "string")
+      .map((r) => ({ t: r.t.toUpperCase().slice(0, 12), v: Number.isInteger(r.v) && r.v > 0 ? r.v : null }));
+  } catch {}
+}
+// every change to the holdings list goes through here
+function pfChanged() { savePf(); renderAlloc(); renderPfScore(); }
+
+// ---------- #1 is my portfolio expensive? ----------
+// Value-weighted (harmonic) multiple: sum of values / sum of (value / multiple), the way index P/Es are built.
+function weightedMultiple(items, key) {
+  let v = 0, inv = 0;
+  for (const x of items) if (x[key] > 0) { v += x.w; inv += x.w / x[key]; }
+  return inv > 0 ? v / inv : null;
+}
+function renderPfScore() {
+  const box = $("pfScore");
+  const bySym = new Map(state.all.map((c) => [c.ticker, c]));
+  const rows = pf.rows.filter((r) => r.t && r.v > 0);
+  if (!rows.length || !state.all.length) {
+    box.innerHTML = '<div class="empty">Add your holdings with their market values above to see how expensive your portfolio is.</div>';
+    return;
+  }
+  const covered = [], skipped = [];
+  for (const r of rows) {
+    const c = bySym.get(r.t);
+    if (!c) { skipped.push(`${r.t} (ETF, fund or not covered)`); continue; }
+    covered.push({ t: r.t, w: r.v, sector: c.sector, pe: c.peLtm > 0 ? c.peLtm : null, ev: c.evEbitdaLtm > 0 ? c.evEbitdaLtm : null });
+  }
+  // the market: every S&P 500 member weighted by market value (dual share classes counted once)
+  const seen = new Set(), market = [];
+  for (const c of spCos()) {
+    const id = c.cik || c.name;
+    if (seen.has(id) || !(c.marketCap > 0)) continue;
+    seen.add(id);
+    market.push({ w: c.marketCap, pe: c.peLtm > 0 ? c.peLtm : null, ev: c.evEbitdaLtm > 0 ? c.evEbitdaLtm : null });
+  }
+  const mine = { pe: weightedMultiple(covered, "pe"), ev: weightedMultiple(covered, "ev") };
+  const mkt = { pe: weightedMultiple(market, "pe"), ev: weightedMultiple(market, "ev") };
+  const noPe = covered.filter((x) => x.pe == null).map((x) => `${x.t} (losses or no P/E)`);
+  if (mine.pe == null || mkt.pe == null) { box.innerHTML = '<div class="empty">None of your holdings has a meaningful P/E to compare.</div>'; return; }
+  const diff = (mine.pe / mkt.pe - 1) * 100;
+  const [, word, tone] = VERDICT.find(([max]) => diff <= max);
+  const phrase = { "No — cheaper than usual": "No — cheaper than the market", "Not really": "Not really — a bit cheaper than the market",
+    "About normal": "About the same as the market", "A little": "A little — pricier than the market", "Yes": "Yes — clearly pricier than the market",
+    "Very": "Very — much pricier than the market" }[word];
+  const tile = (k, v, d, cls = "") => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d ${cls}">${d}</div></div>`;
+  const x = (v) => (v == null ? "–" : v.toFixed(1) + "x");
+  const evDiff = mine.ev != null && mkt.ev != null ? (mine.ev / mkt.ev - 1) * 100 : null;
+  const tone2 = (d) => (d == null ? "" : d >= 3 ? "hot" : d <= -3 ? "cold" : "");
+  // each holding vs its sector median today
+  const secMed = (sector) => stats(state.all.filter((c) => c.sector === sector), METRICS[0]).med;
+  const lines = covered.map((h) => {
+    const m = secMed(h.sector), d = h.pe != null && m ? (h.pe / m - 1) * 100 : null;
+    return `<tr><td class="l"><b>${esc(h.t)}</b></td><td class="l">${esc(h.sector)}</td><td>${x(h.pe)}</td><td>${x(m)}</td>
+      <td class="${tone2(d)}">${d == null ? '<span class="nm">–</span>' : sgn(d)}</td></tr>`;
+  }).join("");
+  box.innerHTML = `<p class="score-head"><b class="${tone}">${esc(phrase)}</b><br><span class="sub">Your stocks trade at ${x(mine.pe)} earnings
+      against ${x(mkt.pe)} for the S&amp;P 500 (${sgn(diff)}).</span></p>
+    <div class="tiles">${tile("Your P/E (LTM)", x(mine.pe), `S&P 500: ${x(mkt.pe)} · ${sgn(diff)}`, tone2(diff))}
+      ${tile("Your EV/EBITDA (LTM)", x(mine.ev), (evDiff == null ? "S&P 500: " + x(mkt.ev) : `S&P 500: ${x(mkt.ev)} · ${sgn(evDiff)}`) +
+        ` · ${covered.filter((c) => c.ev != null).length} of ${covered.length} stocks (banks and insurers have none)`, tone2(evDiff))}
+      ${tile("Holdings in the P/E average", `${covered.length - noPe.length} of ${rows.length}`, "the verdict above is based on P/E")}</div>
+    <div class="table-wrap"><table class="pf-list"><thead><tr><th class="l">Holding</th><th class="l">Sector</th><th>P/E (LTM)</th><th>Sector median</th><th>vs sector</th></tr></thead>
+      <tbody>${lines}</tbody></table></div>
+    ${skipped.length || noPe.length ? `<p class="sub">Not in the P/E average: ${esc([...skipped, ...noPe].join(", "))}.</p>` : ""}`;
+}
+
+// ---------- #2 + #5 sector heatmap, time-lapse and drill-down ----------
+// Sector median series for every week, cached per set of outlier caps; readings at any week are then cheap,
+// which keeps the time-lapse smooth.
+let heatCache = null;
+function heatSeries() {
+  const caps = HIST_METRICS.map((m) => Number($(m.cap).value)).join("|");
+  if (heatCache?.caps === caps && heatCache.data === hist.data && heatCache.n === state.all.length) return heatCache;
+  const { dates, series } = hist.data;
+  const sp = spCos();
+  const groups = [{ name: "S&P 500", idx: true, list: sp }].concat(sectorsOf(sp).map((n) => ({ name: n, list: sp.filter((c) => c.sector === n) })));
+  for (const g of groups) {
+    g.med = {};
+    for (const m of HIST_METRICS) {
+      const cap = Number($(m.cap).value), rows = g.list.map((c) => series[c.ticker]?.[m.key]).filter(Boolean);
+      g.med[m.key] = dates.map((_, i) => {
+        const v = rows.map((r) => r[i]).filter((x) => x != null && x > 0 && !(cap > 0 && x > cap)).sort((a, b) => a - b);
+        return v.length >= 5 ? pct(v, 0.5) : null;
+      });
+    }
+  }
+  heatCache = { caps, data: hist.data, n: state.all.length, dates, groups };
+  return heatCache;
+}
+// readings at week i: each multiple against its median over the previous 5 years (at least 12 weeks of data)
+function heatAt(i) {
+  const { dates, groups } = heatSeries();
+  const from = new Date(dates[i] + "T00:00:00"); from.setFullYear(from.getFullYear() - 5);
+  const f = from.toISOString().slice(0, 10);
+  let j0 = i; while (j0 > 0 && dates[j0 - 1] >= f) j0--;
+  return groups.map((g) => {
+    const m = {};
+    for (const k of Object.keys(g.med)) {
+      const cur = g.med[k][i], win = g.med[k].slice(j0, i + 1).filter((v) => v != null);
+      if (cur == null || win.length < 12) continue;
+      const med = pct([...win].sort((a, b) => a - b), 0.5);
+      m[k] = { cur, med, diff: (cur / med - 1) * 100 };
+    }
+    const ds = Object.values(m).map((x) => x.diff);
+    const below = ds.filter((d) => d <= -VAL_TH).length, above = ds.filter((d) => d >= VAL_TH).length;
+    return { name: g.name, idx: g.idx, m, avg: ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null,
+      read: !ds.length ? "–" : below && above ? "Mixed" : below >= 2 ? "Below history" : above >= 2 ? "Above history" : "In line" };
+  });
+}
+const heat = { i: null, sel: null, timer: null };
+function heatEnd() {
+  const { dates } = heatSeries();
+  const end = state.asOf && state.asOf < dates.at(-1) ? state.asOf : dates.at(-1);
+  return dates.findLastIndex((d) => d <= end);
+}
+function renderHeat() {
+  if (!hist.data?.dates?.length || !state.all.length) return;
+  const { dates } = heatSeries();
+  const slider = $("heatSlider"), last = heatEnd();
+  const first = dates.findIndex((d) => d >= "2011-01-01");
+  slider.min = first; slider.max = last;
+  if (heat.i == null || heat.i > last) heat.i = last;
+  slider.value = heat.i;
+  $("heatDate").textContent = "Week ending " + fmtDay(dates[heat.i]);
+  const rows = heatAt(heat.i);
+  const fill = (d) => {
+    if (d == null) return "var(--surface)";
+    const k = Math.min(1, Math.abs(d) / 25), pctMix = Math.round(10 + 45 * k);
+    return `color-mix(in srgb, var(${d >= 0 ? "--hot" : "--cold"}) ${pctMix}%, var(--surface))`;
+  };
+  $("heatGrid").innerHTML = rows.map((r) => `<button data-s="${esc(r.name)}" aria-pressed="${heat.sel === r.name}" style="background:${fill(r.avg)}"
+      title="${esc(r.name)}: ${r.avg == null ? "not enough history" : sgn(r.avg) + " vs its 5-year median"}">
+      <div class="n">${esc(r.name)}</div><div class="p">${r.avg == null ? "–" : sgn(r.avg)}</div><div class="r">${esc(r.read)}</div></button>`).join("");
+  if (heat.sel) renderSectorDetail(rows.find((r) => r.name === heat.sel));
+}
+function heatStop() {
+  clearInterval(heat.timer); heat.timer = null;
+  $("heatPlay").textContent = "▶ Play"; $("heatPlay").setAttribute("aria-label", "Play time-lapse");
+}
+function heatPlay() {
+  if (heat.timer) return heatStop();
+  const last = heatEnd();
+  if (heat.i >= last) heat.i = Number($("heatSlider").min); // replay from 2011
+  $("heatPlay").textContent = "❚❚ Pause"; $("heatPlay").setAttribute("aria-label", "Pause time-lapse");
+  heat.timer = setInterval(() => {
+    heat.i = Math.min(last, heat.i + 2); // two weeks per frame: 2011 to today in about 40 seconds
+    renderHeat();
+    if (heat.i >= last) heatStop();
+  }, 90);
+}
+function renderSectorDetail(r) {
+  const box = $("sectorDetail");
+  if (!r) { box.hidden = true; return; }
+  box.hidden = false;
+  const { dates, groups } = heatSeries();
+  const g = groups.find((x) => x.name === r.name);
+  const label = (k) => HIST_METRICS.find((m) => m.key === k).label.replace(" LTM", "");
+  const mrows = Object.entries(r.m).map(([k, x]) => `<tr><td class="l">${label(k)}</td><td>${x.cur.toFixed(1)}x</td><td>${x.med.toFixed(1)}x</td><td>${sgn(x.diff)}</td></tr>`).join("");
+  // trend: sector median P/E since 2010, with the week shown marked
+  const ser = g.med.pe, pts = ser.map((v, i) => [i, v]).filter(([, v]) => v != null);
+  let chart = "";
+  if (pts.length > 2) {
+    const W = 360, H = 120, pad = 26, lo = Math.min(...pts.map((p) => p[1])) * 0.95, hi = Math.max(...pts.map((p) => p[1])) * 1.05;
+    const X = (i) => pad + (i / (dates.length - 1)) * (W - pad - 6), Y = (v) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 26);
+    const path = pts.map(([i, v], k) => (k ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1)).join("");
+    chart = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(r.name)} median P/E since 2010">
+      <text x="${pad - 4}" y="${Y(hi) + 10}" text-anchor="end" font-size="10" fill="var(--muted)">${hi.toFixed(0)}x</text>
+      <text x="${pad - 4}" y="${Y(lo)}" text-anchor="end" font-size="10" fill="var(--muted)">${lo.toFixed(0)}x</text>
+      <text x="${pad}" y="${H - 4}" font-size="10" fill="var(--muted)">2010</text><text x="${W - 6}" y="${H - 4}" text-anchor="end" font-size="10" fill="var(--muted)">${dates.at(-1).slice(0, 4)}</text>
+      <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <line x1="${X(heat.i)}" x2="${X(heat.i)}" y1="4" y2="${H - 18}" stroke="var(--text-2)" stroke-dasharray="3 3"/></svg>`;
+  }
+  // companies in the sector, cheapest and priciest by P/E today (or as of the date shown at the top)
+  const cos = state.companies.filter((c) => c.sector === r.name && c.peLtm > 0 && !(Number($("capPe").value) > 0 && c.peLtm > Number($("capPe").value)))
+    .sort((a, b) => a.peLtm - b.peLtm);
+  const coRows = (list) => list.map((c) => `<tr><td class="l"><b>${esc(c.ticker)}</b></td><td class="l">${esc(c.name)}</td><td>${c.peLtm.toFixed(1)}x</td></tr>`).join("");
+  const news = !state.asOf ? (src.latest.news?.[r.name] ?? []).filter((n) => /^https:\/\//.test(n.link)).slice(0, 3) : [];
+  box.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0;font-size:16px">${esc(r.name)} <span class="sub">· ${esc(r.read)}, week ending ${fmtDay(dates[heat.i])}</span></h3>
+      <div class="row">${r.idx ? "" : `<button data-go="companies">See its companies</button>`}<button data-go="charts">Open charts</button><button data-go="close" aria-label="Close">×</button></div></div>
+    <div class="detail-grid">
+      <div><h3>Multiples vs. 5-year median</h3><table><thead><tr><th class="l">LTM</th><th>Now</th><th>5-yr median</th><th>Gap</th></tr></thead><tbody>${mrows}</tbody></table></div>
+      <div><h3>Median P/E since 2010</h3>${chart}</div>
+      ${r.idx ? "" : `<div><h3>Cheapest by P/E (${state.asOf ? "as of the page date" : "today"})</h3><table><tbody>${coRows(cos.slice(0, 3))}</tbody></table>
+        <h3 style="margin-top:10px">Priciest by P/E</h3><table><tbody>${coRows(cos.slice(-3).reverse())}</tbody></table></div>`}
+      ${news.length ? `<div><h3>Recent sector headlines</h3><ul class="news">${news.map((n) => `<li><a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a> <span class="sub">${esc(n.publisher)}</span></li>`).join("")}</ul></div>` : ""}
+    </div>`;
+}
+
+function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); renderAlloc(); renderVerdict(); renderPfScore(); renderHeat(); }
 
 // ---------- tabs ----------
 // One tab visible at a time; the choice is kept in the URL hash (#companies) so it survives reloads and can be linked.
@@ -1186,9 +1453,6 @@ async function loadDates() {
   if (u) { $("covSp").textContent = u.sp500; $("covAll").textContent = (u.sp500 + u.others).toLocaleString(); }
   src.snapshots = (await getJson("data/dates.json").catch(() => ({ snapshots: [] }))).snapshots;
   $("asOfDate").max = today();
-  $("snapSel").innerHTML = '<option value="">Saved snapshots…</option>' +
-    src.snapshots.slice().reverse().map((d) => `<option value="${d}">${fmtDay(d)}</option>`).join("");
-  $("snapSel").value = src.snapshots.includes(state.asOf) ? state.asOf : "";
 }
 
 // Latest pull, a saved snapshot for that exact date, or LTM multiples rebuilt from the weekly history
@@ -1224,12 +1488,11 @@ async function load() {
   state.all = (d.companies || []).filter((c) => !c.error || c.price != null);
   applyUniverse();
   $("asOfDate").value = state.asOf || today();
-  $("snapSel").value = d.source === "snapshot" ? state.asOf : "";
   const banner = $("asOfBanner");
   banner.hidden = d.source === "live";
   if (d.source === "history")
     banner.innerHTML = `<b>Historical view — week ending ${fmtDay(d.effectiveDate)}.</b> LTM multiples rebuilt from SEC filings available on that date
-      (prices as of that week); NTM multiples are hidden because past consensus estimates aren't available. Pick a saved snapshot for a full view incl. NTM.`;
+      (prices as of that week); NTM multiples are hidden because past consensus estimates aren't available.`;
   else if (d.source === "snapshot")
     banner.innerHTML = `<b>Saved snapshot from ${new Date(d.updatedAt).toLocaleString()}</b> — full data incl. NTM, exactly as pulled that day.`;
   $("asOf").textContent = !d.updatedAt
@@ -1312,7 +1575,7 @@ $("pfRows").addEventListener("input", (e) => {
     pf.rows[i].v = digits ? parseInt(digits, 10) : null;
   }
   e.target.removeAttribute("aria-invalid");
-  renderAlloc();
+  pfChanged();
 });
 // show thousands separators once the user leaves the value box
 $("pfRows").addEventListener("focusout", (e) => {
@@ -1325,7 +1588,7 @@ $("pfRows").addEventListener("mousedown", (e) => {
 });
 $("pfRows").addEventListener("click", (e) => {
   const i = e.target.dataset.del; if (i == null) return;
-  pf.rows.splice(Number(i), 1); renderRows(); renderAlloc();
+  pf.rows.splice(Number(i), 1); renderRows(); pfChanged();
 });
 $("pfRows").addEventListener("keydown", (e) => {
   if (ac.input === e.target) {
@@ -1336,9 +1599,26 @@ $("pfRows").addEventListener("keydown", (e) => {
   }
   if (e.key === "Enter") fetchPortfolioNews();
 });
+loadPf();
 renderRows();
+$("pfClear").addEventListener("click", () => { pf.rows = []; renderRows(); pfChanged(); $("pfResults").innerHTML = ""; pfStatus(""); });
+$("heatPlay").addEventListener("click", heatPlay);
+$("heatLatest").addEventListener("click", () => { heatStop(); heat.i = heatEnd(); renderHeat(); });
+$("heatSlider").addEventListener("input", (e) => { heatStop(); heat.i = Number(e.target.value); renderHeat(); });
+$("heatGrid").addEventListener("click", (e) => {
+  const s = e.target.closest("[data-s]")?.dataset.s; if (!s) return;
+  heat.sel = heat.sel === s ? null : s;
+  if (!heat.sel) $("sectorDetail").hidden = true;
+  renderHeat();
+});
+$("sectorDetail").addEventListener("click", (e) => {
+  const go = e.target.closest("[data-go]")?.dataset.go; if (!go) return;
+  if (go === "close") { heat.sel = null; $("sectorDetail").hidden = true; return renderHeat(); }
+  if (go === "companies") { state.sector = heat.sel; $("sectorFilter").value = state.sector; renderAll(); }
+  heatStop();
+  showTab(go);
+});
 $("asOfDate").addEventListener("change", (e) => setAsOf(e.target.value));
-$("snapSel").addEventListener("change", (e) => e.target.value && setAsOf(e.target.value));
 $("latestBtn").addEventListener("click", () => setAsOf(""));
 $("refreshBtn").addEventListener("click", async () => { await fetch("/api/refresh", { method: "POST" }); pollStatus(); });
 window.addEventListener("resize", () => { renderChart(); renderHistory(); syncCoScroll(); });

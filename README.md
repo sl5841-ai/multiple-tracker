@@ -31,7 +31,7 @@ Weekly LTM P/E, EV/EBITDA and EV/Revenue by sector (median + 25th–75th band, w
 
 The **As of** picker in the header re-dates the whole page (sector tables, range chart, company table, history window, CSV export). Links are bookmarkable: `http://localhost:3000/?asof=2023-06-15`.
 
-- **Saved snapshots** — every refresh archives the full dataset (incl. NTM) to `public/data/snapshots/YYYY-MM-DD.json`; picking one of those dates reproduces it exactly.
+- **Saved snapshots** — every refresh archives the full dataset (incl. NTM) to `public/data/snapshots/YYYY-MM-DD.json`; choosing one of those dates in the As of picker reproduces it exactly, including NTM.
 - **Any other past date** (back to January 2010) — rebuilt from the weekly SEC-filings history using the last week on or before that date: LTM P/E, LTM EV/EBITDA, LTM EV/Revenue, market cap and EV. NTM columns are hidden in this view (no free historical consensus).
 
 ## Valuation vs. history
@@ -75,6 +75,8 @@ The first section on the page. Add holdings by hand (ticker and current market v
 
 - **Headlines:** `/api/news?symbols=AAPL,MSFT` returns them from Yahoo Finance's search endpoint. On Vercel this is the serverless function `api/news.js`; locally `server.mjs` serves the same route. Both use `api/_news.mjs`. Only ticker symbols are sent; market values stay in the browser, and nothing is stored.
 - For covered stocks, each ticker card also shows its sector and that sector's reading from the sector ideas section.
+- **Latest earnings:** each stock's card shows the latest reported quarter's EPS against the consensus estimate (Beat / Miss / In line, ±2%) and the next report date, from Yahoo Finance's earnings history via `yahoo-finance2` (which handles Yahoo's session cookie). This is why the Vercel install step now runs `npm install`.
+- **Major news only:** `api/_newsfilter.mjs` drops opinion and commentary publishers, opinion-style and question headlines, listicles and market wraps, and only stories that name the company or ticker are kept (from 20 candidates per ticker).
 - **Sentiment:** each headline is tagged Positive, Negative or Neutral by a finance word list in `api/_sentiment.mjs` (with handling for "not" and "despite"), and flagged when it doesn't name the company. Headline wording only; not a forecast.
 - The market values feed the "Your holdings" series in the sector allocation chart.
 
@@ -88,3 +90,10 @@ The first section on the page. Add holdings by hand (ticker and current market v
 
 - **Verdict panel** at the top answers "Is the market expensive right now?" from the S&P 500's median LTM P/E, EV/EBITDA and EV/Revenue against their own 5-year median: "No — cheaper than usual" (more than 10% below), "Not really" (3–10% below), "About normal" (within 3%), "A little" (3–10% above), "Yes" (10–20% above), "Very" (more than 20% above). Four tiles show the median P/E, median EV/EBITDA, and the cheapest and priciest sectors against their own history.
 - **Sections**, in order: My portfolio (opens first), Sector valuations, Cheap or pricey vs. history, Charts and trends, Company screener. They're listed in a left sidebar on wide screens and a scrolling bar on narrow ones; each has its own link (e.g. `/#companies`).
+
+## Interactive features
+
+- **Is my portfolio expensive?** (My portfolio): your holdings' value-weighted P/E and EV/EBITDA against the S&P 500's, computed the way index P/Es are (total value ÷ the earnings that value buys), with each holding's P/E against its sector median. Funds and loss-making companies are left out of the average and listed.
+- **Remembered holdings:** holdings are saved in this browser (`localStorage`, key `iiey-holdings-v1`) and restored on the next visit; **Clear all** removes them. Nothing is sent to a server except ticker symbols for news.
+- **Sector heatmap** (Sector valuations): one tile per sector, colored blue (cheaper than its 5-year history) to coral (pricier), with the gap as a number and the reading as text. Click a tile for a drill-down: its multiples vs the 5-year median, median P/E since 2010, its cheapest and priciest companies, and sector headlines, with links to the Company screener and Charts.
+- **Time-lapse:** Play steps the heatmap two weeks per frame from 2011 to the latest week (about 40 seconds); the slider scrubs to any week. Sector medians are cached per set of outlier caps so each frame is quick.
