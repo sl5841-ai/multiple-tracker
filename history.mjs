@@ -6,7 +6,8 @@ import YahooFinance from "yahoo-finance2";
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 const SEC_UA = process.env.SEC_USER_AGENT || "sp500-multiples-app research@localhost.localdomain";
 const DAY = 86400000;
-const YEARS = 5;
+// History starts in 2010: SEC XBRL financial data (the source of point-in-time fundamentals) begins in 2009-2011.
+const START = Date.UTC(2010, 0, 1);
 
 const d = (s) => new Date(s + "T00:00:00Z").getTime();
 const days = (a, b) => Math.round((b - a) / DAY);
@@ -219,7 +220,7 @@ async function secFacts(cik, ticker) {
 
 export function weeklyGrid(now = Date.now()) {
   const out = [];
-  let t = now - YEARS * 365.25 * DAY - 14 * DAY;
+  let t = START;
   t -= ((new Date(t).getUTCDay() + 2) % 7) * DAY; // back up to a Friday
   for (; t <= now; t += 7 * DAY) out.push(Math.floor(t / DAY) * DAY);
   return out;
@@ -258,10 +259,10 @@ export async function companyHistory(c, grid) {
       if (r.ebitda != null && r.ebitdaAvail <= t && r.shares != null) evRow = r;
     }
     const fresh = (r) => r && t - r.end < 270 * DAY; // ignore stale fundamentals
-    pe.push(price != null && fresh(epsRow) && epsRow.eps > 0 ? +(price / epsRow.eps).toFixed(2) : price != null && fresh(epsRow) ? -1 : null);
+    pe.push(price != null && fresh(epsRow) && epsRow.eps > 0 ? +(price / epsRow.eps).toFixed(1) : price != null && fresh(epsRow) ? -1 : null);
     if (!c.noEv && price != null && fresh(evRow)) {
       const evv = price * evRow.shares + (evRow.netDebt ?? 0);
-      ev.push(evRow.ebitda > 0 && evv > 0 ? +(evv / evRow.ebitda).toFixed(2) : -1);
+      ev.push(evRow.ebitda > 0 && evv > 0 ? +(evv / evRow.ebitda).toFixed(1) : -1);
     } else ev.push(null);
     if (!c.noEv && price != null && fresh(revRow)) {
       const evv = price * revRow.shares + (revRow.netDebt ?? 0);

@@ -3,59 +3,70 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Valuation Multiples Tracker</title>
+<title>Is It Expensive Yet?</title>
+<meta name="description" content="Valuation multiples for every US sector, today and back to 2010: P/E, EV/EBITDA and EV/Revenue for the S&amp;P 500 and US-listed stocks worth $300M or more." />
 <style>
   :root {
     color-scheme: light;
-    --bg: #f6f6f4;
-    --surface: #fcfcfb;
-    --border: #e3e2de;
-    --text: #0b0b0b;
-    --text-2: #52514e;
-    --muted: #8a8984;
-    --accent: #2a78d6;
-    --accent-soft: rgba(42, 120, 214, 0.22);
-    --ma: #eb6834;
-    --s2: #eb6834;
-    --hover: #f0f0ec;
-    --sel: #e8f0fb;
+    --bg: #f4f6f7;
+    --surface: #ffffff;
+    --border: #dfe5e9;
+    --text: #0d1418;
+    --text-2: #4a5560;
+    --muted: #7d8890;
+    --accent: #0f7c74;        /* teal: primary series, selected controls */
+    --on-accent: #ffffff;     /* text on the accent fill */
+    --accent-soft: rgba(15, 124, 116, 0.18);
+    --ma: #7a5bc2;            /* violet: 200-day moving average */
+    --s2: #d4602a;            /* coral: your holdings */
+    --hover: #eef2f4;
+    --sel: #e2f2f0;
     --good-bg: rgba(0, 131, 0, 0.14);
     --bad-bg: rgba(227, 73, 72, 0.16);
+    --hot: #b8461c; --cold: #1d5fb8; --tile: #eef2f4;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --bg: #111110; --surface: #1a1a19; --border: #2e2e2c; --text: #fff; --text-2: #c3c2b7;
-      --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --ma: #d95926; --s2: #d95926; --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+      --bg: #0e1316; --surface: #161d21; --border: #27323a; --text: #f2f5f7; --text-2: #b8c2c9; --muted: #84909a;
+      --accent: #2fb3a6; --on-accent: #0b1416; --accent-soft: rgba(47, 179, 166, 0.28); --ma: #a690ea; --s2: #f0864f;
+      --hover: #1e272c; --sel: #13302d; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+      --hot: #f3936a; --cold: #6fa8f0; --tile: #1d262b;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #111110; --surface: #1a1a19; --border: #2e2e2c; --text: #fff; --text-2: #c3c2b7;
-    --muted: #8f8e87; --accent: #3987e5; --accent-soft: rgba(57, 135, 229, 0.3); --ma: #d95926; --s2: #d95926; --hover: #242422; --sel: #1d2a3b; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+      --bg: #0e1316; --surface: #161d21; --border: #27323a; --text: #f2f5f7; --text-2: #b8c2c9; --muted: #84909a;
+      --accent: #2fb3a6; --on-accent: #0b1416; --accent-soft: rgba(47, 179, 166, 0.28); --ma: #a690ea; --s2: #f0864f;
+      --hover: #1e272c; --sel: #13302d; --good-bg: rgba(40, 170, 60, 0.24); --bad-bg: rgba(230, 103, 103, 0.24);
+      --hot: #f3936a; --cold: #6fa8f0; --tile: #1d262b;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 64px; }
+  main { max-width: 1440px; margin: 0 auto; padding: 24px 16px 64px; }
   header { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
   h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
   h2 { font-size: 15px; margin: 0; }
   .sub { color: var(--text-2); font-size: 13px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
   .card-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   button, select, input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   button { cursor: pointer; }
   button:hover { background: var(--hover); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   input[type="number"] { width: 70px; }
   input[type="search"] { width: 240px; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; }
-  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
   .progress { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; width: 220px; }
   .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
   .table-wrap { overflow-x: auto; }
+  /* a second horizontal scrollbar above long tables, kept in step with the table's own */
+  .topscroll { overflow-x: auto; overflow-y: hidden; height: 16px; margin-bottom: 2px; background: var(--surface); }
+  .topscroll > div { height: 1px; }
+  @media (min-width: 980px) { .topscroll { position: sticky; top: 0; z-index: 4; } }
   table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
   th { font-weight: 600; color: var(--text-2); font-size: 12px; }
@@ -120,12 +131,12 @@
     background: var(--bg); border-bottom: 1px solid var(--border); scrollbar-width: thin; }
   .tabs button { flex: none; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-weight: 600; padding: 8px 12px; }
   .tabs button:hover { background: var(--hover); color: var(--text); }
-  .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
   .lg-s1::before { width: 14px; height: 10px; background: var(--accent); border-radius: 2px; }
   .lg-s2::before { width: 14px; height: 10px; background: var(--s2); border-radius: 2px; }
-  .lg-mw::before { width: 0; height: 14px; border-left: 2px solid var(--text-2); }
   .pf-row { display: flex; gap: 6px; margin-top: 6px; position: relative; }
-  .pf-row input.t { width: 110px; text-transform: uppercase; }
+  .pf-row input.t { width: 140px; text-transform: uppercase; }
+  .pf-row input.t::placeholder { text-transform: none; }
   .pf-row input.v { width: 150px; font-variant-numeric: tabular-nums; }
   .pf-row input[aria-invalid="true"] { border-color: #e34948; }
   .ac { position: absolute; top: 100%; left: 0; z-index: 10; margin: 2px 0 0; padding: 4px 0; list-style: none; width: min(420px, 92vw);
@@ -141,6 +152,37 @@
   .sent.positive { background: var(--good-bg); }
   .sent.negative { background: var(--bad-bg); }
   .sent.neutral { background: var(--hover); color: var(--text-2); }
+  .tagline { color: var(--text-2); font-size: 14px; margin: 2px 0 4px; }
+  .coverage { margin: -8px 0 14px; font-size: 13px; color: var(--text-2); }
+  .coverage summary { cursor: pointer; width: fit-content; }
+  .coverage ul { margin: 6px 0 0; padding-left: 18px; max-width: 980px; }
+  .coverage li { margin: 3px 0; }
+  .title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .scope { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); white-space: nowrap; cursor: help; }
+  .scope.sp { border-color: var(--s2); color: var(--text); background: color-mix(in srgb, var(--s2) 14%, transparent); }
+  /* verdict */
+  .verdict { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .verdict-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .verdict-q { color: var(--text-2); font-size: 13px; font-weight: 600; }
+  .verdict-a { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 2px 0 4px; }
+  .verdict-a.hot { color: var(--hot); } .verdict-a.cold { color: var(--cold); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  @media (max-width: 520px) {
+    .verdict { padding: 14px; } .verdict-a { font-size: 28px; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .tile { padding: 8px 10px; } .tile .v { font-size: 17px; }
+  }
+  .tile { background: var(--tile); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+  .tile .k { font-size: 12px; color: var(--text-2); }
+  .tile .v { font-size: 20px; font-weight: 650; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .d { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+  .tile .d.hot { color: var(--hot); } .tile .d.cold { color: var(--cold); }
+  /* sidebar layout: the section list sits on the left on wide screens, as a scrolling bar on narrow ones */
+  @media (min-width: 980px) {
+    .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .tabs { flex-direction: column; overflow: visible; top: 16px; padding: 8px; margin: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .tabs button { text-align: left; padding: 10px 12px; white-space: normal; }
+    .tabs::before { content: "Sections"; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 12px 6px; }
+  }
   .pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); }
   @media (max-width: 640px) { input[type="search"] { width: 100%; } }
 </style>
@@ -149,13 +191,11 @@
 <main>
   <header>
     <div>
-      <h1>Valuation Multiples Tracker</h1>
+      <h1>Is It Expensive Yet?</h1>
+      <div class="tagline">Valuation multiples for every US sector, today and back to 2010.</div>
       <div class="sub" id="asOf">Loading…</div>
     </div>
     <div class="row">
-      <div class="seg" id="uniSeg" role="group" aria-label="Stock universe" hidden>
-        <button data-u="sp500" aria-pressed="true">S&amp;P 500</button><button data-u="all" aria-pressed="false">All US $300M+</button>
-      </div>
       <label class="asof">As of <input type="date" id="asOfDate" /></label>
       <select id="snapSel" title="Saved full snapshots (include NTM)"><option value="">Saved snapshots…</option></select>
       <button id="latestBtn">Latest</button>
@@ -164,17 +204,43 @@
       <button id="refreshBtn">Refresh data</button>
     </div>
   </header>
+  <details class="coverage">
+    <summary>What this app covers</summary>
+    <ul>
+      <li><b>Today's data:</b> <span id="covAll">about 2,700</span> US-listed common stocks worth at least $300M, on NYSE, Nasdaq and NYSE American, including the S&amp;P 500
+        and ADRs of foreign companies that report in US dollars. S&amp;P 500 members use official GICS sectors; the rest use Yahoo Finance's sector, mapped to the matching GICS name.
+        Used for sector benchmarks, sector ranges, the Companies table and holdings lookups.</li>
+      <li><b>History back to 2010</b> (sector charts over time, valuation vs. history, sector ideas, the allocation and past dates): the <span id="covSp">503</span> S&amp;P 500 members only,
+        because history is rebuilt from SEC filings for those companies.</li>
+      <li><b>Not covered:</b> ETFs and funds (they can be entered as holdings and appear as "ETFs &amp; other"), companies under $300M, shell companies (SPACs),
+        warrants, units and preferred shares, companies reporting in another currency (e.g. TSMC, ASML, Spotify), and OTC stocks.
+        About 5% of eligible companies may be missing when their Yahoo Finance lookup fails during a data build.</li>
+    </ul>
+  </details>
   <div class="banner" id="asOfBanner" hidden></div>
+  <section class="verdict" id="verdict" aria-live="polite">
+    <div class="verdict-head">
+      <div>
+        <div class="verdict-q">Is the market expensive right now?</div>
+        <div class="verdict-a" id="vAnswer">…</div>
+        <div class="sub" id="vWhy"></div>
+      </div>
+      <span class="scope sp" title="The verdict compares the S&amp;P 500's median multiples with their own 5-year median, from history rebuilt from SEC filings for S&amp;P 500 members.">Based on S&amp;P 500 history</span>
+    </div>
+    <div class="tiles" id="vTiles"></div>
+  </section>
+  <div class="layout">
   <nav class="tabs" role="tablist" aria-label="Sections">
-    <button role="tab" id="tab-holdings" data-tab="holdings" aria-selected="false">News & allocation</button>
-    <button role="tab" id="tab-ideas" data-tab="ideas" aria-selected="false">Sector ideas & benchmarks</button>
-    <button role="tab" id="tab-charts" data-tab="charts" aria-selected="false">Sector ranges & history</button>
-    <button role="tab" id="tab-valuation" data-tab="valuation" aria-selected="false">Valuation vs. history</button>
-    <button role="tab" id="tab-companies" data-tab="companies" aria-selected="false">Companies</button>
+    <button role="tab" id="tab-holdings" data-tab="holdings" aria-selected="false" title="Your holdings, their latest news, and your sector mix next to the backtest-based allocation">My portfolio</button>
+    <button role="tab" id="tab-ideas" data-tab="ideas" aria-selected="false" title="Cheapest and priciest sectors, and every sector's multiples today">Sector valuations</button>
+    <button role="tab" id="tab-valuation" data-tab="valuation" aria-selected="false" title="Each sector's multiples against its own 1-, 3-, 5- or 10-year median">Cheap or pricey vs. history</button>
+    <button role="tab" id="tab-charts" data-tab="charts" aria-selected="false" title="Sector ranges today and sector multiples over time since 2010">Charts and trends</button>
+    <button role="tab" id="tab-companies" data-tab="companies" aria-selected="false" title="Search, sort and export every covered company">Company screener</button>
   </nav>
+  <div class="content">
 
   <section class="card" data-tab="holdings" role="tabpanel" aria-labelledby="tab-holdings">
-    <div class="card-head"><h2>News for your holdings</h2></div>
+    <div class="card-head"><div class="title-row"><h2>News for your holdings</h2><span class="scope" title="Ticker suggestions and sector labels cover every US-listed common stock worth $300M or more, plus common ETFs.">All US $300M+ · any ticker</span></div></div>
     <div class="sub">Add your holdings: start typing a ticker or company name and pick from the suggestions, then enter the current market value in whole dollars.</div>
     <div id="pfRows"></div>
     <div class="row" style="margin-top:6px">
@@ -194,46 +260,45 @@
 
   <section class="card" data-tab="holdings" role="tabpanel" aria-labelledby="tab-holdings">
     <div class="card-head">
-      <h2 id="allocTitle">Sector allocation</h2>
-      <div class="row">
-        <label class="asof">Amount to allocate $ <input type="number" id="allocAmt" value="" min="0" step="1" placeholder="holdings total" style="width:130px" /></label>
-      </div>
+      <div class="title-row"><h2 id="allocTitle">Sector allocation</h2><span class="scope sp" title="Sector weights use every US-listed stock worth $300M or more. The tilt multipliers come from a backtest of S&amp;P 500 sectors, and the above/below-history readings from S&amp;P 500 history, refreshed with each data update.">Weights: all US $300M+ · tilt: S&amp;P 500 backtest</span></div>
     </div>
-    <div class="empty" id="allocEmpty">Add your holdings with their market values above to see your sector mix next to the screen's allocation.</div>
+    <p class="sub" id="allocTiltNote" style="margin:-4px 0 10px"></p>
+    <div class="empty" id="allocEmpty">Add your holdings with their market values above to see your sector mix next to the backtest-based allocation.</div>
     <div class="legend" id="allocLegend" style="margin-bottom:8px"></div>
     <div class="chart" id="allocChart"><svg id="allocSvg"></svg><div class="tip" id="allocTip"></div></div>
     <details style="margin-top:8px"><summary class="sub">Show as table</summary><div id="allocBody"></div></details>
     <div class="note">
       <b>Your holdings</b> are grouped by each stock's sector; ETFs, funds and stocks this app doesn't cover go in "ETFs &amp; other", since a fund's sector mix isn't known here.
-      <br><b>Screen's allocation:</b> each sector starts at its share of total S&amp;P 500 market value (the "market weight").
+      <br><b>Backtest-based allocation:</b> each sector starts at its share of the total market value of every US-listed stock worth $300M or more that the app covers (the "market weight").
+      Each sector's reading comes from its S&amp;P 500 members, since history exists only for them, and applies to the whole sector.
       Sectors reading <b>Above history</b> in the sector ideas section get 1.5 times that weight, sectors reading <b>Below history</b> get 0.5 times, and the rest are unchanged; the weights are then rescaled to add up to 100%.
-      <br><b>Why this direction:</b> the multipliers were chosen from a backtest (September 2022 to 2026, sector ETFs, run October 20, 2026). Over that period sectors trading above their own history kept outperforming
-      and sectors below it lagged, so the original "favor cheap sectors" rule (1.5x below, 0.5x above) trailed market weights. Among multipliers from 0 to 3, the best result was 0x below and 3x above;
-      this uses a milder 0.5x / 1.5x to avoid an extreme, over-fitted allocation.
-      <br><b>Track record:</b> against simply holding the market weights, this tilt returned +0.15% over the following 13 weeks, +0.53% over 26 and +0.68% over 52, and came out ahead on 60%, 62% and 83% of test dates.
-      Multipliers picked on 2022–2024 alone also beat market weights on 2025–2026. But the test covers about four years and one market regime, led by highly valued technology stocks; a value-led market could reverse it.
-      <br>This is an arithmetic illustration of the screen's rule, not investment advice. It knows nothing about your goals, time horizon, taxes or existing holdings, and the amount you enter is not stored or sent anywhere.
+      <br><b>Why this direction:</b> the multipliers come from a backtest of S&amp;P 500 sectors from July 2011 to 2026 (sector weights and SPDR sector ETFs, run October 20, 2026).
+      Over that period, sectors trading above their own history did slightly better than market weights and sectors below it slightly worse, so the opposite "favor cheap sectors" rule (1.5x below, 0.5x above) trailed.
+      <br><b>Track record:</b> against simply holding the market weights, this tilt returned +0.04% over the following 13 weeks, +0.18% over 26 and +0.30% over 52, and came out ahead on 55%, 58% and 58% of test dates.
+      That edge is small, about the size of its margin of error (±0.17% over 26 weeks). It held in 2011–2015, 2016–2019 and 2023–2026 but reversed in 2020–2022, when cheaper sectors rebounded.
+      Finer-tuned multipliers did not help: the best combination on 2011–2018 lost money on 2019–2026, while 0.5x / 1.5x gained, so the app keeps round numbers.
+      The test uses today's S&amp;P 500 members throughout (survivorship bias) and starts in 2011, when the first readings are available.
+      <br>This is an arithmetic illustration of the screen's rule, not investment advice. It knows nothing about your goals, time horizon, taxes or other investments, and the holdings you enter are not stored or sent anywhere.
     </div>
   </section>
 
   <section class="card" data-tab="ideas" role="tabpanel" aria-labelledby="tab-ideas">
-    <div class="card-head"><h2 id="pickTitle">Sector ideas from this screen</h2></div>
+    <div class="card-head"><div class="title-row"><h2 id="pickTitle">Sector ideas from this screen</h2><span class="scope sp" title="History back to 2010 is rebuilt from SEC filings for S&amp;P 500 members only, so this section covers the 503 S&amp;P 500 companies.">S&amp;P 500 only</span></div></div>
     <div id="pickBody"><span class="sub">Loading…</span></div>
     <div class="note">
       <b>How they are chosen:</b> the cheapest sector is the one furthest below its own 5-year median across LTM P/E, EV/EBITDA and EV/Revenue; the most expensive is the one furthest above.
       Each must be more than 5% away from its median on at least two of the three multiples.
       Trend is context only and does not change the ranking. Headlines come from Yahoo Finance for the sector's SPDR ETF, as of the last data pull, and are not shown for past dates.
-      <br><b>What happened next, historically:</b> in a backtest from September 2022 to 2026 (run October 13, 2026, using sector ETFs), cheap did not mean "about to rise".
-      The cheapest sector trailed the S&amp;P 500 on average over the following 13, 26 and 52 weeks (by 1.6%, 5.2% and 9.3%),
-      while the most expensive matched it over 13 weeks and beat it by 2.7% over 26 weeks and 2.6% over 52. That is why the sector allocation tilts toward sectors above their history, not below.
-      The test covers roughly four years and one market regime, in which expensive sectors kept outperforming.
+      <br><b>What happened next, historically:</b> in a backtest from July 2011 to 2026 (run October 20, 2026, using SPDR sector ETFs), cheap did not mean "about to rise".
+      The cheapest sector trailed the S&amp;P 500 on average over the following 13, 26 and 52 weeks (by 1.4%, 3.1% and 4.8%);
+      the most expensive also trailed, but by less (0.9%, 0.8% and 2.6%). That is why the sector allocation leans toward sectors above their history, not below. Any single sector is riskier than the whole index.
       <br>This is the output of a mechanical screen for study purposes, not investment advice, and it takes no account of anyone's circumstances.
     </div>
   </section>
 
   <section class="card" data-tab="ideas" role="tabpanel" aria-labelledby="tab-ideas">
     <div class="card-head">
-      <h2>Sector benchmarks</h2>
+      <div class="title-row"><h2>Sector benchmarks</h2><span class="scope dyn" title="Today: every US-listed common stock worth $300M or more. Past dates: S&amp;P 500 only.">All US $300M+</span></div>
       <div class="row sub">
         <label>Exclude P/E above <input type="number" id="capPe" value="100" min="0" />x</label>
         <label>EV/EBITDA above <input type="number" id="capEv" value="50" min="0" />x</label>
@@ -244,15 +309,15 @@
     <div class="note">
       25th = 1st quartile boundary · 75th = start of the 4th (top) quartile · percentiles use linear interpolation (Excel PERCENTILE.INC).
       Negative / zero earnings or EBITDA are treated as NM and excluded, as are multiples above the caps. Click a sector to see its companies in the Companies tab.
-      <br><b>Universe:</b> "S&amp;P 500" uses official GICS sectors. "All US $300M+" adds every other NYSE, Nasdaq and NYSE American common stock worth at least $300M,
-      including ADRs, with Yahoo Finance's sector mapped to the matching GICS name; it leaves out shell companies (SPACs) and companies that report in a currency other than the US dollar,
-      whose multiples would mix currencies. Sector charts over time, valuation vs. history, sector ideas, the allocation and past dates cover the S&amp;P 500 only.
+      <br><b>Universe:</b> every NYSE, Nasdaq and NYSE American common stock worth at least $300M, including ADRs; S&amp;P 500 members use official GICS sectors and the rest
+      Yahoo Finance's sector mapped to the matching GICS name. Shell companies (SPACs) and companies reporting in a currency other than the US dollar are left out.
+      For past dates, this table covers the S&amp;P 500 only.
     </div>
   </section>
 
   <section class="card" data-tab="charts" role="tabpanel" aria-labelledby="tab-charts">
     <div class="card-head">
-      <h2 id="chartTitle">Sector ranges</h2>
+      <div class="title-row"><h2 id="chartTitle">Sector ranges</h2><span class="scope dyn" title="Today: every US-listed common stock worth $300M or more. Past dates: S&amp;P 500 only.">All US $300M+</span></div>
       <div class="row">
         <div class="seg" id="metricSeg"></div>
         <div class="legend"><span class="lg-iqr">25th–75th</span><span class="lg-med">Median</span><span class="lg-idx" id="idxLegend">S&amp;P 500 median</span></div>
@@ -263,7 +328,7 @@
 
   <section class="card" data-tab="charts" role="tabpanel" aria-labelledby="tab-charts">
     <div class="card-head">
-      <h2 id="histTitle">Sector multiples over time</h2>
+      <div class="title-row"><h2 id="histTitle">Sector multiples over time</h2><span class="scope sp" title="History back to 2010 is rebuilt from SEC filings for S&amp;P 500 members only, so this section covers the 503 S&amp;P 500 companies.">S&amp;P 500 only</span></div>
       <div class="row">
         <div class="seg" id="histMetricSeg"></div>
         <div class="seg" id="periodSeg"></div>
@@ -284,7 +349,7 @@
 
   <section class="card" data-tab="valuation" role="tabpanel" aria-labelledby="tab-valuation">
     <div class="card-head">
-      <h2 id="valTitle">Valuation vs. history</h2>
+      <div class="title-row"><h2 id="valTitle">Valuation vs. history</h2><span class="scope sp" title="History back to 2010 is rebuilt from SEC filings for S&amp;P 500 members only, so this section covers the 503 S&amp;P 500 companies.">S&amp;P 500 only</span></div>
       <div class="row"><span class="sub">Compare with median of the last</span><div class="seg" id="valSeg"></div></div>
     </div>
     <div class="table-wrap"><table id="valTable"></table></div>
@@ -300,14 +365,15 @@
 
   <section class="card" data-tab="companies" role="tabpanel" aria-labelledby="tab-companies">
     <div class="card-head">
-      <h2>Companies <span class="pill" id="count"></span></h2>
+      <div class="title-row"><h2>Companies <span class="pill" id="count"></span></h2><span class="scope dyn" title="Today: every US-listed common stock worth $300M or more. Past dates: S&amp;P 500 only.">All US $300M+</span></div>
       <div class="row">
         <input type="search" id="search" placeholder="Search ticker or company…" />
         <select id="sectorFilter"><option value="">All sectors</option></select>
         <button id="csvBtn">Export CSV</button>
       </div>
     </div>
-    <div class="table-wrap"><table id="coTable"></table></div>
+    <div class="topscroll" id="coTopScroll" aria-hidden="true"><div></div></div>
+    <div class="table-wrap" id="coWrap"><table id="coTable"></table></div>
     <div class="note">
       <span class="key" style="background:var(--good-bg)"></span>Above sector median
       &nbsp;&nbsp;<span class="key" style="background:var(--bad-bg)"></span>Below sector median
@@ -320,6 +386,8 @@
       (Yahoo does not publish consensus EBITDA). EV/Revenue = EV ÷ LTM revenue or NTM consensus revenue (blended like EPS). EV-based multiples are shown as NM for banks and insurers, where EV isn't meaningful.
     </div>
   </section>
+  </div>
+  </div>
 </main>
 
 <script>
@@ -334,12 +402,13 @@ const METRICS = [
 const $ = (id) => document.getElementById(id);
 // Metrics with data in the current view. NTM has none for past dates (no historical consensus), so it is hidden there.
 const shownMetrics = () => METRICS.filter((m) => !m.key.endsWith("Ntm") || state.companies.some((c) => c[m.key] != null));
-// state.all = every company in the data; state.companies = the universe in view (S&P 500 or all US).
+// state.all = every company in the data (all US $300M+); state.companies = what today's-data views show (the same list).
 // History-based sections (charts, valuation, sector ideas, allocation, past dates) always use the S&P 500.
 const isSp = (c) => c.sp500 !== false; // stores written before the wider universe have no flag and are S&P-only
 const spCos = () => state.all.filter(isSp);
-const uniLabel = () => (state.universe === "all" ? "All US ($300M+)" : "S&P 500");
-const state = { all: [], universe: new URLSearchParams(location.search).get("u") === "all" ? "all" : "sp500", companies: [], sector: "", search: "", sort: { key: "marketCap", dir: -1 }, chartMetric: "peNtm" };
+// past dates are rebuilt from S&P 500 history only, so the label follows the data
+const uniLabel = () => (state.all.some((c) => !isSp(c)) ? "All US ($300M+)" : "S&P 500");
+const state = { all: [], companies: [], sector: "", search: "", sort: { key: "marketCap", dir: -1 }, chartMetric: "peNtm" };
 
 // ---------- stats ----------
 function pct(sorted, p) {
@@ -364,11 +433,12 @@ function sectors() {
   return sectorsOf(state.companies);
 }
 function applyUniverse() {
-  const hasOthers = state.all.some((c) => !isSp(c));
-  $("uniSeg").hidden = !hasOthers;
-  if (!hasOthers) state.universe = "sp500";
-  state.companies = state.universe === "all" ? state.all : spCos();
-  $("uniSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.u === state.universe));
+  state.companies = state.all;
+  const spOnly = uniLabel() === "S&P 500";
+  document.querySelectorAll(".scope.dyn").forEach((b) => {
+    b.textContent = spOnly ? "S&P 500 only" : "All US $300M+";
+    b.classList.toggle("sp", spOnly);
+  });
   $("idxLegend").textContent = `${uniLabel()} median`;
 }
 
@@ -496,6 +566,7 @@ function renderCoTable() {
     }).join("") + "</tr>";
   }
   $("coTable").innerHTML = h + "</tbody>";
+  syncCoScroll();
   $("coTable").querySelectorAll("th.sort").forEach((th) =>
     th.addEventListener("click", () => {
       const k = th.dataset.k;
@@ -527,6 +598,8 @@ const PERIODS = [
   { key: "1y", label: "1Y / LTM", years: 1 },
   { key: "3y", label: "3Y", years: 3 },
   { key: "5y", label: "5Y", years: 5 },
+  { key: "10y", label: "10Y", years: 10 },
+  { key: "max", label: "Since 2010", years: 17, short: "since-2010" }, // history starts January 2010
 ];
 const MA_WEEKS = 40;
 const hist = { data: null, metric: "pe", period: "1y", panels: [] };
@@ -658,7 +731,7 @@ function ensureHistory() {
 async function loadHistory() {
   const h = await ensureHistory();
   $("histStatus").textContent = h?.updatedAt ? `History as of ${new Date(h.updatedAt).toLocaleDateString()}` : "History not built yet";
-  renderHistory(); renderValuation(); renderPick(); renderAlloc();
+  renderHistory(); renderValuation(); renderPick(); renderAlloc(); renderVerdict();
 }
 
 // ---------- valuation vs history ----------
@@ -698,11 +771,11 @@ function renderValuation() {
   if (!hist.data?.dates?.length || !state.companies.length) return;
   const p = VAL_PERIODS.find((x) => x.key === val.period);
   const { list, week } = valuationRows(val.period);
-  $("valTitle").textContent = `Valuation vs. history — LTM multiples, week ending ${week ? fmtDay(week) : "–"}, vs ${p.years}-year median`;
+  $("valTitle").textContent = `Valuation vs. history — LTM multiples, week ending ${week ? fmtDay(week) : "–"}, vs ${p.short ?? p.years + "-year"} median`;
   const pos = (x, v) => (x.hi > x.lo ? ((v - x.lo) / (x.hi - x.lo)) * 100 : 50);
   let h = '<thead><tr class="grp"><th></th><th></th>' + HIST_METRICS.map((m) => `<th colspan="4" class="gs">${m.label}</th>`).join("") +
     '</tr><tr><th>Sector</th><th class="l">Reading</th>' +
-    HIST_METRICS.map(() => `<th class="gs">Now</th><th>${p.years}Y median</th><th>vs median</th><th>Low – high</th>`).join("") + "</tr></thead><tbody>";
+    HIST_METRICS.map(() => `<th class="gs">Now</th><th>${p.short ? "Since-2010" : p.years + "Y"} median</th><th>vs median</th><th>Low – high</th>`).join("") + "</tr></thead><tbody>";
   for (const r of list) {
     h += `<tr class="${r.idx ? "total" : ""}"><td>${esc(r.name)}</td><td class="l"><span class="read ${r.read[1]}">${r.read[0]}</span></td>`;
     for (const m of HIST_METRICS) {
@@ -778,12 +851,12 @@ function renderPick() {
 }
 
 // ---------- sector allocation ----------
-// Screen's allocation: market-cap sector weights tilted by the sector ideas reading (Below history x0.5, Above history x1.5).
+// Backtest-based allocation: market-cap sector weights tilted by the sector ideas reading (Below history x0.5, Above history x1.5).
 // Calibrated on the 2022-2026 backtest, where sectors above their own history went on to outperform; see the note in the page.
 // Compared with the market weights and, when entered, the user's own holdings grouped by sector.
 const ALLOC_TILT = { lo: 0.5, hi: 1.5 };
+const TILT_BACKTEST_RUN = "Oct 20, 2026"; // update when the calibration backtest is re-run
 const OTHER = "ETFs & other";
-const fmtUsd = (v) => "$" + Math.round(v).toLocaleString();
 
 // user's holdings -> { total, bySector: Map(sector -> share) }; uncovered tickers (ETFs, funds, small or foreign stocks) go to OTHER
 function holdingsBySector() {
@@ -800,22 +873,23 @@ function holdingsBySector() {
   return { total, bySector: m };
 }
 
-function syncAmount() {
-  const total = pf.rows.reduce((a, r) => a + (r.t && r.v > 0 ? r.v : 0), 0);
-  $("allocAmt").value = total || "";
-}
 function renderAlloc() {
   if (!hist.data?.dates?.length || !state.companies.length) return;
-  const amt = Math.max(0, Number($("allocAmt").value) || 0);
   const cikOf = new Map((src.latest?.companies ?? []).map((c) => [c.ticker, c.cik]));
   const { list, week } = valuationRows("5y");
   $("allocTitle").textContent = `Sector allocation — week ending ${week ? fmtDay(week) : "–"}`;
+  // readings move with every data refresh; the multipliers are fixed from one backtest run (see the note below the chart)
+  $("allocTiltNote").innerHTML = `<b>Tilt:</b> 1.5× for sectors above their 5-year history, 0.5× below. The multipliers come from a backtest of S&amp;P 500 sectors
+    (July 2011 – 2026, last run ${TILT_BACKTEST_RUN}); each sector's above/below reading is recalculated from S&amp;P 500 history with every data refresh
+    (currently the week ending ${week ? fmtDay(week) : "–"}).`;
   const rows = list.filter((r) => !r.idx).map((r) => {
-    // companies with two listed share classes (GOOGL/GOOG, FOXA/FOX, NWSA/NWS) each report the full company value: count once
+    // weights over every company in view (all US $300M+; S&P 500 for past dates). Companies with two listed share classes
+    // (GOOGL/GOOG, FOXA/FOX, HEI/HEI.A...) each report the full company value, so count each company once: by SEC CIK for
+    // S&P 500 members, otherwise by company name without the share-class wording.
     const byCo = new Map();
-    for (const c of spCos()) {
+    for (const c of state.all) {
       if (c.sector !== r.name || !(c.marketCap > 0)) continue;
-      const id = cikOf.get(c.ticker) ?? c.ticker;
+      const id = cikOf.get(c.ticker) || c.name.toLowerCase().replace(/\bclass [a-z]\b|[^a-z0-9]/g, "");
       byCo.set(id, Math.max(byCo.get(id) ?? 0, c.marketCap));
     }
     const cap = [...byCo.values()].reduce((x, y) => x + y, 0);
@@ -823,26 +897,24 @@ function renderAlloc() {
   }).filter((r) => r.cap > 0);
   const capSum = rows.reduce((a, r) => a + r.cap, 0), tiltSum = rows.reduce((a, r) => a + r.cap * r.tilt, 0);
   if (!capSum) { $("allocSvg").innerHTML = ""; $("allocBody").innerHTML = '<span class="sub">No market value data for this date.</span>'; return; }
-  for (const r of rows) { r.base = r.cap / capSum; r.w = (r.cap * r.tilt) / tiltSum; r.usd = Math.round(amt * r.w); }
+  for (const r of rows) { r.base = r.cap / capSum; r.w = (r.cap * r.tilt) / tiltSum; }
   rows.sort((a, b) => b.w - a.w);
-  if (rows.length) rows[0].usd += Math.round(amt) - rows.reduce((a, r) => a + r.usd, 0); // rounding goes to the largest line
 
   const hs = holdingsBySector(), mine = hs.total > 0;
   $("allocChart").hidden = !mine; $("allocLegend").hidden = !mine;
   $("allocEmpty").hidden = mine;
   if (!mine) { $("allocBody").innerHTML = ""; return; }
   for (const r of rows) r.mine = mine ? hs.bySector.get(r.name) ?? 0 : null;
-  if (mine && hs.bySector.has(OTHER)) rows.push({ name: OTHER, read: ["", ""], base: null, w: null, usd: null, mine: hs.bySector.get(OTHER) });
+  if (mine && hs.bySector.has(OTHER)) rows.push({ name: OTHER, read: ["", ""], base: null, w: null, mine: hs.bySector.get(OTHER) });
 
-  $("allocLegend").innerHTML = '<span class="lg-s1">Screen\'s allocation</span>' + (mine ? '<span class="lg-s2">Your holdings</span>' : "") +
-    '<span class="lg-mw">Market weight (S&amp;P 500)</span>';
+  $("allocLegend").innerHTML = '<span class="lg-s1">Backtest-based allocation</span>' + (mine ? '<span class="lg-s2">Your holdings</span>' : "");
 
-  // ---- chart: one row per sector, screen's allocation bar (+ your holdings bar), market weight as a tick
+  // ---- chart: one row per sector, backtest-based allocation bar (+ your holdings bar), market weight as a tick
   const svg = $("allocSvg");
-  const W = Math.max(320, svg.parentElement.clientWidth), labelW = Math.min(200, W * 0.36), right = 130;
+  const W = Math.max(320, svg.parentElement.clientWidth), labelW = Math.min(200, W * 0.36), right = 60;
   const barH = 11, gap = 3, rowH = (mine ? barH * 2 + gap : barH) + 14, top = 4, bottom = 24;
   const H = top + bottom + rowH * rows.length;
-  const max = Math.max(0.05, ...rows.flatMap((r) => [r.w ?? 0, r.mine ?? 0, r.base ?? 0])) * 1.05;
+  const max = Math.max(0.05, ...rows.flatMap((r) => [r.w ?? 0, r.mine ?? 0])) * 1.05;
   const x = (v) => labelW + (v / max) * (W - labelW - right);
   const p1 = (v) => (v * 100).toFixed(1) + "%";
   const step = [0.02, 0.05, 0.1, 0.2].find((t) => max / t <= 6) ?? 0.25;
@@ -856,8 +928,7 @@ function renderAlloc() {
     if (r.read[0]) g += `<text x="${labelW - 10}" y="${cy + 11}" text-anchor="end" font-size="10" fill="var(--muted)">${esc(r.read[0])}${r.tilt !== 1 ? " · ×" + r.tilt : ""}</text>`;
     if (r.w != null) {
       g += `<rect x="${labelW}" y="${y0}" width="${Math.max(2, x(r.w) - labelW)}" height="${barH}" rx="2" fill="var(--accent)"/>` +
-           `<text x="${x(r.w) + 6}" y="${y0 + barH - 2}" font-size="11" fill="var(--text-2)">${p1(r.w)} · ${fmtUsd(r.usd)}</text>`;
-      g += `<line x1="${x(r.base)}" x2="${x(r.base)}" y1="${y0 - 3}" y2="${y0 + (mine ? barH * 2 + gap : barH) + 3}" stroke="var(--text-2)" stroke-width="2"/>`;
+           `<text x="${x(r.w) + 6}" y="${y0 + barH - 2}" font-size="11" fill="var(--text-2)">${p1(r.w)}</text>`;
     }
     if (mine) {
       const y1 = y0 + barH + gap;
@@ -874,7 +945,7 @@ function renderAlloc() {
     el.addEventListener("mousemove", (e) => {
       const r = rows[el.dataset.i], box = svg.parentElement.getBoundingClientRect();
       tip.innerHTML = `<b>${esc(r.name)}</b>${r.read[0] ? ` · ${esc(r.read[0])}` : ""}<br>` +
-        (r.w != null ? `Screen's allocation: <b>${p1(r.w)}</b> (${fmtUsd(r.usd)})<br>Market weight: ${p1(r.base)}${r.tilt !== 1 ? ` · tilt ×${r.tilt}` : ""}<br>` : "") +
+        (r.w != null ? `Backtest-based allocation: <b>${p1(r.w)}</b>${r.tilt !== 1 ? ` · tilt ×${r.tilt}` : ""}<br>` : "") +
         (mine ? `Your holdings: <b>${p1(r.mine)}</b>` : "");
       tip.style.display = "block";
       tip.style.left = Math.min(e.clientX - box.left + 14, box.width - tip.offsetWidth - 4) + "px";
@@ -886,11 +957,10 @@ function renderAlloc() {
   // ---- same numbers as a table, collapsed by default
   const cell = (v) => (v == null ? '<span class="nm">–</span>' : p1(v));
   $("allocBody").innerHTML = `<div class="table-wrap"><table><thead><tr><th>Sector</th><th class="l">Reading</th><th>Market weight</th><th>Tilt</th>
-    <th>Screen's allocation</th><th>Amount</th>${mine ? "<th>Your holdings</th>" : ""}</tr></thead><tbody>` +
+    <th>Backtest-based allocation</th>${mine ? "<th>Your holdings</th>" : ""}</tr></thead><tbody>` +
     rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="l">${r.read[0] ? `<span class="read ${r.read[1]}">${r.read[0]}</span>` : ""}</td><td>${cell(r.base)}</td>
-      <td>${r.tilt == null || r.tilt === 1 ? '<span class="nm">–</span>' : "×" + r.tilt}</td><td class="med">${cell(r.w)}</td>
-      <td>${r.usd == null ? '<span class="nm">–</span>' : fmtUsd(r.usd)}</td>${mine ? `<td>${cell(r.mine)}</td>` : ""}</tr>`).join("") +
-    `<tr class="total"><td>Total</td><td></td><td>100.0%</td><td></td><td>100.0%</td><td>${fmtUsd(amt)}</td>${mine ? "<td>100.0%</td>" : ""}</tr></tbody></table></div>`;
+      <td>${r.tilt == null || r.tilt === 1 ? '<span class="nm">–</span>' : "×" + r.tilt}</td><td class="med">${cell(r.w)}</td>${mine ? `<td>${cell(r.mine)}</td>` : ""}</tr>`).join("") +
+    `<tr class="total"><td>Total</td><td></td><td>100.0%</td><td></td><td>100.0%</td>${mine ? "<td>100.0%</td>" : ""}</tr></tbody></table></div>`;
 }
 
 // ---------- ticker suggestions ----------
@@ -956,7 +1026,7 @@ function acPick(k) {
   pf.rows[i].t = x.t; input.value = x.t;
   acClose();
   input.closest(".pf-row").querySelector(".v").focus();
-  syncAmount(); renderAlloc();
+  renderAlloc();
 }
 
 // ---------- news for the user's holdings ----------
@@ -1037,12 +1107,47 @@ function renderPortfolioNews(results) {
   }).join("") + "</div>";
 }
 
-function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); renderAlloc(); }
+// ---------- verdict: one-line answer + stat tiles ----------
+// Uses the S&P 500 row of valuation vs. history (median LTM multiples vs their 5-year median), same as the sector ideas.
+const VERDICT = [[-10, "No — cheaper than usual", "cold"], [-3, "Not really", "cold"], [3, "About normal", ""], [10, "A little", "hot"], [20, "Yes", "hot"], [Infinity, "Very", "hot"]];
+function renderVerdict() {
+  if (!hist.data?.dates?.length || !state.companies.length) return;
+  const { list, week } = valuationRows("5y");
+  const spx = list.find((r) => r.idx), secs = list.filter((r) => !r.idx && r.avg != null);
+  if (!spx || spx.avg == null) { $("vAnswer").textContent = "Not enough history"; return; }
+  const [, answer, tone] = VERDICT.find(([max]) => spx.avg <= max);
+  const a = $("vAnswer");
+  a.textContent = answer; a.className = "verdict-a " + tone;
+  const pe = spx.m.pe;
+  $("vWhy").textContent = `The median S&P 500 company's multiples average ${sgn(spx.avg)} against their own 5-year median` +
+    (pe ? ` (P/E ${pe.cur.toFixed(1)}x vs ${pe.med.toFixed(1)}x)` : "") + `, week ending ${week ? fmtDay(week) : "–"}.`;
+  const toneOf = (d) => (d >= 3 ? "hot" : d <= -3 ? "cold" : "");
+  const tile = (k, v, d, cls = "") => `<div class="tile"><div class="k">${k}</div><div class="v" title="${v}">${v}</div><div class="d ${cls}">${d}</div></div>`;
+  const metric = (key, label) => { const x = spx.m[key]; return x ? tile(label, x.cur.toFixed(1) + "x", `${sgn(x.diff)} vs 5-yr median ${x.med.toFixed(1)}x`, toneOf(x.diff)) : ""; };
+  const cheap = secs[0], dear = secs.at(-1);
+  $("vTiles").innerHTML = metric("pe", "Median P/E (LTM)") + metric("ev", "Median EV/EBITDA (LTM)") +
+    (cheap ? tile("Cheapest sector vs. its history", esc(cheap.name), `${sgn(cheap.avg)} vs its 5-yr median`, toneOf(cheap.avg)) : "") +
+    (dear ? tile("Priciest sector vs. its history", esc(dear.name), `${sgn(dear.avg)} vs its 5-yr median`, toneOf(dear.avg)) : "");
+}
+
+// keep the scrollbar above the company table the same width as the table and in step with it
+function syncCoScroll() {
+  const wrap = $("coWrap"), top = $("coTopScroll");
+  top.firstElementChild.style.width = wrap.scrollWidth + "px";
+  top.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
+  top.scrollLeft = wrap.scrollLeft;
+}
+// copying only when the positions differ stops the two scroll events from echoing back and forth
+const linkScroll = (from, to) => from.addEventListener("scroll", () => {
+  if (to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
+});
+
+function renderAll() { renderMetricSeg(); renderSectorTable(); renderChart(); renderCoTable(); renderHistory(); renderValuation(); renderPick(); renderAlloc(); renderVerdict(); }
 
 // ---------- tabs ----------
 // One tab visible at a time; the choice is kept in the URL hash (#companies) so it survives reloads and can be linked.
 // Charts measure their container, so they are redrawn when their tab becomes visible.
-const TAB_IDS = ["holdings", "ideas", "charts", "valuation", "companies"];
+const TAB_IDS = ["holdings", "ideas", "valuation", "charts", "companies"];
 function showTab(id) {
   if (!TAB_IDS.includes(id)) id = TAB_IDS[0];
   document.querySelectorAll("section[data-tab]").forEach((el) => (el.hidden = el.dataset.tab !== id));
@@ -1052,6 +1157,7 @@ function showTab(id) {
   history.replaceState(null, "", u);
   if (id === "charts") { renderChart(); renderHistory(); }
   if (id === "holdings") renderAlloc();
+  if (id === "companies") syncCoScroll();
 }
 document.querySelector(".tabs").addEventListener("click", (e) => {
   const id = e.target.closest("[data-tab]")?.dataset.tab;
@@ -1076,6 +1182,8 @@ const src = { latest: null, snapshots: [], hasServer: false };
 async function loadDates() {
   src.latest = await getJson("data/latest.json").catch(() => ({ updatedAt: null, companies: [] }));
   acList = null; // ticker suggestions are rebuilt from the new company list
+  const u = src.latest.universe;
+  if (u) { $("covSp").textContent = u.sp500; $("covAll").textContent = (u.sp500 + u.others).toLocaleString(); }
   src.snapshots = (await getJson("data/dates.json").catch(() => ({ snapshots: [] }))).snapshots;
   $("asOfDate").max = today();
   $("snapSel").innerHTML = '<option value="">Saved snapshots…</option>' +
@@ -1128,7 +1236,7 @@ async function load() {
     ? (src.hasServer ? "Fetching data for the first time — this takes a couple of minutes…" : "No data has been built yet")
     : d.source === "history"
       ? `${state.companies.length} S&P 500 companies · as of ${fmtDay(d.effectiveDate)} (reconstructed)`
-      : `${state.companies.length} companies (${uniLabel()}) · data as of ${new Date(d.updatedAt).toLocaleString()}`;
+      : `${state.companies.length.toLocaleString()} ${uniLabel() === "S&P 500" ? "S&P 500" : "US-listed"} companies · data as of ${new Date(d.updatedAt).toLocaleString()}`;
   const sel = $("sectorFilter");
   sel.innerHTML = '<option value="">All sectors</option>' + sectors().map((s) => `<option>${esc(s)}</option>`).join("");
   sel.value = state.sector;
@@ -1181,7 +1289,7 @@ const seg = (id, items, get, set) => {
 };
 seg("histMetricSeg", HIST_METRICS, () => hist.metric, (k) => (hist.metric = k));
 seg("periodSeg", PERIODS, () => hist.period, (k) => (hist.period = k));
-$("valSeg").innerHTML = VAL_PERIODS.map((p) => `<button data-k="${p.key}" aria-pressed="${p.key === val.period}">${p.years}Y</button>`).join("");
+$("valSeg").innerHTML = VAL_PERIODS.map((p) => `<button data-k="${p.key}" aria-pressed="${p.key === val.period}">${p.label}</button>`).join("");
 $("valSeg").addEventListener("click", (e) => {
   const k = e.target.dataset.k; if (!k) return;
   val.period = k;
@@ -1192,16 +1300,6 @@ $("search").addEventListener("input", (e) => { state.search = e.target.value; re
 $("sectorFilter").addEventListener("change", (e) => { state.sector = e.target.value; renderAll(); });
 ["capPe", "capEv", "capRev"].forEach((id) => $(id).addEventListener("input", renderAll));
 $("csvBtn").addEventListener("click", exportCsv);
-$("uniSeg").addEventListener("click", (e) => {
-  const u = e.target.closest("[data-u]")?.dataset.u; if (!u || u === state.universe) return;
-  state.universe = u;
-  const url = new URL(location.href);
-  u === "all" ? url.searchParams.set("u", "all") : url.searchParams.delete("u");
-  history.replaceState(null, "", url);
-  state.sector = "";
-  load();
-});
-$("allocAmt").addEventListener("input", renderAlloc);
 $("pfGo").addEventListener("click", fetchPortfolioNews);
 $("pfAdd").addEventListener("click", () => { pf.rows.push({ t: "", v: null }); renderRows(); $("pfRows").lastElementChild.querySelector("input").focus(); });
 $("pfRows").addEventListener("input", (e) => {
@@ -1214,7 +1312,7 @@ $("pfRows").addEventListener("input", (e) => {
     pf.rows[i].v = digits ? parseInt(digits, 10) : null;
   }
   e.target.removeAttribute("aria-invalid");
-  syncAmount(); renderAlloc();
+  renderAlloc();
 });
 // show thousands separators once the user leaves the value box
 $("pfRows").addEventListener("focusout", (e) => {
@@ -1227,7 +1325,7 @@ $("pfRows").addEventListener("mousedown", (e) => {
 });
 $("pfRows").addEventListener("click", (e) => {
   const i = e.target.dataset.del; if (i == null) return;
-  pf.rows.splice(Number(i), 1); renderRows(); syncAmount(); renderAlloc();
+  pf.rows.splice(Number(i), 1); renderRows(); renderAlloc();
 });
 $("pfRows").addEventListener("keydown", (e) => {
   if (ac.input === e.target) {
@@ -1243,7 +1341,9 @@ $("asOfDate").addEventListener("change", (e) => setAsOf(e.target.value));
 $("snapSel").addEventListener("change", (e) => e.target.value && setAsOf(e.target.value));
 $("latestBtn").addEventListener("click", () => setAsOf(""));
 $("refreshBtn").addEventListener("click", async () => { await fetch("/api/refresh", { method: "POST" }); pollStatus(); });
-window.addEventListener("resize", () => { renderChart(); renderHistory(); });
+window.addEventListener("resize", () => { renderChart(); renderHistory(); syncCoScroll(); });
+linkScroll($("coTopScroll"), $("coWrap"));
+linkScroll($("coWrap"), $("coTopScroll"));
 $("refreshBtn").hidden = true;
 loadDates().then(load).then(loadHistory).then(pollStatus);
 </script>

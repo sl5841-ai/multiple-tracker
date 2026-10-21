@@ -1,6 +1,8 @@
-# S&P 500 Trading Multiples
+# Is It Expensive Yet?
 
-Local web app showing LTM and NTM P/E, EV/EBITDA and EV/Revenue for every S&P 500 constituent, with 25th percentile / median / 75th percentile by GICS sector.
+Valuation multiples for every US sector, today and back to 2010. The app shows LTM and NTM P/E, EV/EBITDA and EV/Revenue for every US-listed common stock worth $300M or more (about 2,700, including the S&P 500), with 25th percentile / median / 75th percentile by sector, plus sector history back to 2010 for the S&P 500.
+
+Live: https://multiple-tracker.vercel.app
 
 ```
 npm install
@@ -16,21 +18,21 @@ npm start        # then open http://localhost:3000
 
 ## Sector multiples over time
 
-Weekly LTM P/E, EV/EBITDA and EV/Revenue by sector (median + 25th–75th band, with a 200-day / 40-week moving average of the median) over YTD / 1Y / 3Y / 5Y.
+Weekly LTM P/E, EV/EBITDA and EV/Revenue by sector (median + 25th–75th band, with a 200-day / 40-week moving average of the median) over YTD / 1Y / 3Y / 5Y / 10Y / since 2010. History starts in January 2010, when SEC XBRL financial data begins; coverage is thinner in 2010–2011 (about 180–350 companies with a P/E) than from 2012 on.
 
 - Fundamentals: SEC EDGAR XBRL (`history.mjs`), point-in-time — a quarter only counts once it was filed. Prices + splits: Yahoo weekly chart.
 - LTM = annual value, or four chained quarters (Q4 derived from 10-K less 9M YTD). EBITDA = operating income + D&A.
 - Historical EV = price × diluted shares + debt − cash & ST investments + NCI.
 - Built after the snapshot refresh (~2 min) and cached in `public/data/history.json` for 7 days.
 - Set `SEC_USER_AGENT` (e.g. "Your Name you@example.com") — SEC asks for contact info in the user-agent.
-- Limits: LTM only (no free historical NTM consensus), today's constituents (survivorship bias).
+- Limits: LTM only (no free historical NTM consensus), today's constituents (survivorship bias, which grows the further back you go), nothing before 2010.
 
 ## As-of date
 
 The **As of** picker in the header re-dates the whole page (sector tables, range chart, company table, history window, CSV export). Links are bookmarkable: `http://localhost:3000/?asof=2023-06-15`.
 
 - **Saved snapshots** — every refresh archives the full dataset (incl. NTM) to `public/data/snapshots/YYYY-MM-DD.json`; picking one of those dates reproduces it exactly.
-- **Any other past date** (back to ~Sep 2021) — rebuilt from the weekly SEC-filings history using the last week on or before that date: LTM P/E, LTM EV/EBITDA, LTM EV/Revenue, market cap and EV. NTM columns are hidden in this view (no free historical consensus).
+- **Any other past date** (back to January 2010) — rebuilt from the weekly SEC-filings history using the last week on or before that date: LTM P/E, LTM EV/EBITDA, LTM EV/Revenue, market cap and EV. NTM columns are hidden in this view (no free historical consensus).
 
 ## Valuation vs. history
 
@@ -38,7 +40,7 @@ A screen comparing each sector's current LTM median multiple (P/E, EV/EBITDA, EV
 
 - **Reading**: *Below history* / *Above history* = at least two multiples more than 5% from the window median in that direction and none the other way; *Mixed* = they disagree; *In line* otherwise.
 - The bar shows where the current value sits between the window's low and high; the tick marks the window median.
-- It is a valuation screen, not investment advice. History only goes back to ~Sep 2021, so longer windows are truncated for earlier as-of dates.
+- It is a valuation screen, not investment advice. History goes back to January 2010, so longer windows are truncated for earlier as-of dates.
 
 ## Hosting as a static site (Vercel)
 
@@ -56,16 +58,15 @@ A rule-based card that names two sectors, each with the reasons for and against:
 - **Most expensive vs. its own history:** the sector furthest above its own 5-year median (it must read "Above history").
 - **Reasons shown:** distance from its own history, P/E versus the S&P 500 and trend (multiples versus their 200-day average). Only the first decides the ranking; the rest are tagged as supporting it or pointing the other way.
 - **Headlines:** recent Yahoo Finance headlines for each sector's SPDR ETF, pulled with each data refresh into `latest.json`. Not shown for past dates.
-- **Track record:** in a backtest over September 2022–2026 neither ranking predicted returns. The cheapest sector trailed the S&P 500 at every horizon tested, and the most expensive sector went on to beat it over 26 and 52 weeks. The card states this. It is a mechanical screen, not investment advice.
+- **Track record (July 2011–2026):** both the cheapest and the most expensive sector trailed the S&P 500 on average; the cheapest by more (3.1% vs 0.8% over 26 weeks). The card states this. It is a mechanical screen, not investment advice.
 
 ## Sector allocation
 
-In the News & allocation tab, a chart compares three things for each sector:
+In the My portfolio section, a chart compares three things for each sector:
 
-- **Screen's allocation:** each sector's share of S&P 500 market value, tilted 1.5x for "Above history" and 0.5x for "Below history", rescaled to 100%, with dollar amounts for the amount entered. The direction and size were calibrated on the 2022–2026 backtest (multipliers 0–3 tested; best 0x/3x, softened to 0.5x/1.5x).
-- **Market weight:** the untilted S&P 500 share, shown as a tick.
-- **Your holdings:** when holdings with market values are entered, their mix by sector. ETFs, funds and stocks the app does not cover are grouped as "ETFs & other". A button fills the amount with the holdings total.
-- **Track record:** against untilted market weights the tilt returned +0.15%, +0.53% and +0.68% over 13, 26 and 52 weeks (ahead on 60%, 62% and 83% of dates), and multipliers chosen on 2022–2024 also beat market weights on 2025–2026. One regime, about four years; the section states this. It is an arithmetic illustration, not investment advice; holdings and amounts stay in the browser.
+- **Backtest-based allocation:** each sector's share of the market value of all covered US stocks ($300M+), tilted 1.5x for "Above history" and 0.5x for "Below history" (readings from S&P 500 history), rescaled to 100%. Shown as percentages. The direction comes from the 2011–2026 backtest; round multipliers are kept because finer tuning did not hold up out of sample.
+- **Your holdings:** when holdings with market values are entered, their mix by sector. ETFs, funds and stocks the app does not cover are grouped as "ETFs & other".
+- **Track record (July 2011–2026):** against untilted market weights the tilt returned +0.04%, +0.18% and +0.30% over 13, 26 and 52 weeks (ahead on 55%, 58% and 58% of dates), about the size of its margin of error. It held in 2011–2015, 2016–2019 and 2023–2026 and reversed in 2020–2022; finer-tuned multipliers did not hold up out of sample. The section states this.
 - The same numbers are available as a table under "Show as table".
 
 ## News for your holdings
@@ -79,9 +80,11 @@ The first section on the page. Add holdings by hand (ticker and current market v
 
 ## Stock universe
 
-A switch in the header chooses **S&P 500** or **All US $300M+** for the sections built on today's data: sector benchmarks, sector ranges and the Companies table (holdings news also recognizes the wider list).
+- **Today's data** (sector benchmarks, sector ranges, the Companies table, holdings lookups): every NYSE, Nasdaq and NYSE American common stock with a market cap of at least $300M, including the S&P 500 and USD-reporting ADRs, from Nasdaq Trader's symbol directory. S&P 500 members keep official GICS sectors from Wikipedia; the rest use Yahoo Finance's sector mapped to the matching GICS name. Shell companies (SPACs) and non-USD reporters are left out. About 2,700 companies.
+- **History back to 2010** (sector charts over time, valuation vs. history, sector ideas, the allocation and past dates): S&P 500 members only, since history is rebuilt from SEC filings for those companies.
+- The full data build takes about 7 minutes (~5,400 Yahoo lookups).
 
-- **S&P 500:** constituents and official GICS sectors from Wikipedia.
-- **All US $300M+:** adds every other NYSE, Nasdaq and NYSE American common stock (including ADRs) with a market cap of at least $300M, from Nasdaq Trader's symbol directory. Sectors come from Yahoo Finance, mapped to the matching GICS names. Shell companies (SPACs) and companies reporting in a non-USD currency are left out. About 2,900 companies in total.
-- **S&P 500 only:** sector charts over time, valuation vs. history, sector ideas, the allocation and past dates, since history is rebuilt from SEC filings for S&P 500 members only.
-- The full data build now takes about 7 minutes (~5,400 Yahoo lookups).
+## Layout
+
+- **Verdict panel** at the top answers "Is the market expensive right now?" from the S&P 500's median LTM P/E, EV/EBITDA and EV/Revenue against their own 5-year median: "No — cheaper than usual" (more than 10% below), "Not really" (3–10% below), "About normal" (within 3%), "A little" (3–10% above), "Yes" (10–20% above), "Very" (more than 20% above). Four tiles show the median P/E, median EV/EBITDA, and the cheapest and priciest sectors against their own history.
+- **Sections**, in order: My portfolio (opens first), Sector valuations, Cheap or pricey vs. history, Charts and trends, Company screener. They're listed in a left sidebar on wide screens and a scrolling bar on narrow ones; each has its own link (e.g. `/#companies`).
